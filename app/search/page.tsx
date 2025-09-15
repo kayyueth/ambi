@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { searchTerms } from "@/lib/mock-data";
 
 export default function SearchPage() {
   const params = useSearchParams();
@@ -24,15 +23,24 @@ export default function SearchPage() {
 
   useEffect(
     function runSearch() {
-      if (!query.trim()) {
-        setResults([]);
-        return;
+      let aborted = false;
+      async function search() {
+        if (!query.trim()) {
+          setResults([]);
+          return;
+        }
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, {
+          cache: "no-store",
+        });
+        if (!res.ok || aborted) return;
+        const data = await res.json();
+        if (aborted) return;
+        setResults(data.results ?? []);
       }
-      const found = searchTerms(query).map((t) => ({
-        term: t.term,
-        slug: t.slug,
-      }));
-      setResults(found);
+      search();
+      return () => {
+        aborted = true;
+      };
     },
     [query]
   );
