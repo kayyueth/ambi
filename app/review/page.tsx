@@ -2,21 +2,39 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { nextReviewCard } from "@/lib/mock-data";
 
 interface Card {
   id: string;
   text: string;
+  term: string;
 }
 
 export default function ReviewPage() {
-  const [cards, setCards] = useState<Card[]>([
-    { id: "1", text: "Definition candidate A" },
-    { id: "2", text: "Definition candidate B" },
-    { id: "3", text: "Definition candidate C" },
-  ]);
+  const [cards, setCards] = useState<Card[]>(() => {
+    const first = nextReviewCard();
+    const second = nextReviewCard();
+    const third = nextReviewCard();
+    return [first, second, third].filter(Boolean).map((x, i) => ({
+      id: `${x!.candidate.id}-${i}`,
+      text: `${x!.candidate.text} — ${x!.term.term}`,
+      term: x!.term.slug,
+    }));
+  });
 
   function vote(direction: "down" | "up") {
-    setCards(prev => prev.slice(1));
+    setCards((prev) => {
+      const rest = prev.slice(1);
+      const refill = nextReviewCard();
+      if (refill) {
+        rest.push({
+          id: `${refill.candidate.id}-${Date.now()}`,
+          text: `${refill.candidate.text} — ${refill.term.term}`,
+          term: refill.term.slug,
+        });
+      }
+      return rest;
+    });
     console.log("vote", direction);
   }
 
@@ -31,9 +49,13 @@ export default function ReviewPage() {
             {current.text}
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" onClick={() => vote("down")}>👈 Lower</Button>
+            <Button variant="secondary" onClick={() => vote("down")}>
+              👈 Lower
+            </Button>
             <Button onClick={() => vote("up")}>👉 Raise</Button>
-            <Button variant="destructive" className="ml-auto">Hold to flag</Button>
+            <Button variant="destructive" className="ml-auto">
+              Hold to flag
+            </Button>
           </div>
         </div>
       ) : (
@@ -42,5 +64,3 @@ export default function ReviewPage() {
     </div>
   );
 }
-
-
