@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { AuthButton } from "@/components/auth-button";
 
 export function TopNav() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export function TopNav() {
             <Button size="sm">审阅</Button>
           </Link>
           <NotificationsBell />
-          <ProfileMenu />
+          <AuthButton />
         </nav>
       </div>
     </header>
@@ -67,31 +68,6 @@ function NotificationsBell() {
   );
 }
 
-function ProfileMenu() {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2">
-          <Avatar className="h-6 w-6">
-            <AvatarFallback>U</AvatarFallback>
-          </Avatar>
-          <span className="hidden sm:inline">个人中心</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/contributions">我的贡献</Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/">设置</Link>
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem>登出</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
+// ProfileMenu replaced by AuthButton
 
 export default TopNav;

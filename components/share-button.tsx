@@ -76,10 +76,10 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       ctx.fillStyle = "#181818";
       ctx.fillRect(40, 30, 720, 340);
 
-      // AMBI logo
+      // Ambiguity logo
       ctx.fillStyle = "#1db854";
       ctx.font = "bold 20px Arial";
-      ctx.fillText("AMBI", 70, 60);
+      ctx.fillText("Ambiguity", 70, 60);
 
       // Term title
       ctx.fillStyle = "#ffffff";
@@ -143,7 +143,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
 
       ctx.fillStyle = "#1db854";
       ctx.font = "bold 12px Arial";
-      ctx.fillText("Explore on Ambi", 70 + 600, footerY);
+      ctx.fillText("Explore on Ambiguity", 70 + 600, footerY);
 
       // Convert to blob and show in popup
       canvas.toBlob(
@@ -223,6 +223,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       maxWidth: number,
       lineHeight: number
     ): number {
+      if (!ctx) return y;
       ctx.textBaseline = "top";
       const words = text.split(" ");
       let line = "";
@@ -306,8 +307,8 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
     ctx.font = "bold 20px Arial";
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    console.log("Drawing AMBI at:", contentX, contentY + 20);
-    ctx.fillText("AMBI", contentX, contentY + 20);
+    console.log("Drawing Ambiguity at:", contentX, contentY + 20);
+    ctx.fillText("Ambiguity", contentX, contentY + 20);
 
     // Draw term title (Spotify track style) - BRIGHT WHITE
     ctx.fillStyle = "#ffffff";
@@ -371,12 +372,12 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
     ctx.textBaseline = "top";
     ctx.fillText(`${totalCandidates} definitions available`, contentX, footerY);
 
-    // Draw "Explore on Ambi" (Spotify-style link)
+    // Draw "Explore on Ambiguity" (Spotify-style link)
     ctx.fillStyle = "#1db854";
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "right";
     ctx.textBaseline = "top";
-    ctx.fillText("Explore on Ambi", cardX + cardWidth - padding, footerY);
+    ctx.fillText("Explore on Ambiguity", cardX + cardWidth - padding, footerY);
 
     // Add Spotify-style decorative elements
     // Draw subtle accent line
@@ -430,7 +431,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
   function shareToTwitter() {
     const url = encodeURIComponent(`${window.location.origin}/term/${slug}`);
     const text = encodeURIComponent(
-      `Check out the definition of "${term}" on Ambi`
+      `Check out the definition of "${term}" on Ambiguity`
     );
     window.open(
       `https://twitter.com/intent/tweet?text=${text}&url=${url}`,
@@ -442,7 +443,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
     const url = encodeURIComponent(`${window.location.origin}/term/${slug}`);
     const title = encodeURIComponent(`Definition: ${term}`);
     const summary = encodeURIComponent(
-      `Explore the definition of "${term}" and its various interpretations on Ambi`
+      `Explore the definition of "${term}" and its various interpretations on Ambiguity`
     );
     window.open(
       `https://www.linkedin.com/sharing/share-offsite/?url=${url}&title=${title}&summary=${summary}`,

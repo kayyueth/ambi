@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  TERMS,
-  toSlug,
-  type DefinitionCandidate,
-  type TermEntry,
-} from "@/lib/mock-data";
+import { toSlug } from "@/lib/mock-data";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   processUploadedFile,
   type FileProcessingResult,
@@ -14,11 +10,13 @@ type UploadBody = {
   term: string;
   definition: string;
   source?: string;
+  userId?: string;
 };
 
 type FileUploadBody = {
   term: string;
   source?: string;
+  userId?: string;
 };
 
 export async function POST(req: NextRequest) {
@@ -45,6 +43,7 @@ async function handleFileUpload(req: NextRequest) {
     const file = formData.get("file") as File;
     const term = formData.get("term") as string;
     const source = (formData.get("source") as string) || "File upload";
+    const userId = (formData.get("userId") as string) || "anonymous";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -76,30 +75,36 @@ async function handleFileUpload(req: NextRequest) {
       );
     }
 
-    // Create term entry with extracted text
+    // Persist to Supabase
     const slug = toSlug(term.trim());
-    let entry: TermEntry | undefined = TERMS.find((t) => t.slug === slug);
-    if (!entry) {
-      entry = { term: term.trim(), slug, candidates: [] };
-      TERMS.push(entry);
+    const supabase = getSupabaseServerClient();
+
+    const { data: termRow } = await upsertTerm(supabase, {
+      slug,
+      term: term.trim(),
+    });
+
+    const { data: auth } = await supabase.auth.getUser();
+    const currentUserId = auth.user?.id ?? null;
+
+    const { data: defRow, error: insertErr } = await supabase
+      .from("definitions")
+      .insert({
+        term_id: termRow!.id,
+        text: result.text,
+        source: `${source} (${result.method})`,
+        weight: result.confidence ? result.confidence / 100 : 0.5,
+        status: "pending",
+        user_id: currentUserId,
+      })
+      .select("id")
+      .single();
+
+    if (insertErr) {
+      return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }
 
-    const candidate: DefinitionCandidate = {
-      id: `${slug}-${Date.now()}`,
-      text: result.text,
-      source: `${source} (${result.method})`,
-      weight: result.confidence ? result.confidence / 100 : 0.5,
-    };
-    entry.candidates.push(candidate);
-
-    return NextResponse.json({
-      ok: true,
-      slug,
-      id: candidate.id,
-      extractedText: result.text,
-      method: result.method,
-      confidence: result.confidence,
-    });
+    return NextResponse.json({ ok: true, slug, id: defRow!.id });
   } catch (err) {
     console.error("/api/upload file upload error", err);
     return NextResponse.json(
@@ -113,11 +118,13 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   const term = (body.term ?? "").trim();
   const definition = (body.definition ?? "").trim();
   const source = (body.source ?? "User submission").trim();
+  const userId = body.userId || "anonymous";
 
   console.log("/api/upload text upload", {
     term,
     defLen: definition.length,
     source,
+    userId,
   });
 
   if (!term) {
@@ -131,22 +138,59 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   }
 
   const slug = toSlug(term);
-  let entry: TermEntry | undefined = TERMS.find((t) => t.slug === slug);
-  if (!entry) {
-    entry = { term, slug, candidates: [] };
-    TERMS.push(entry);
+  const supabase = getSupabaseServerClient();
+
+  const { data: termRow } = await upsertTerm(supabase, { slug, term });
+
+  const { data: auth } = await supabase.auth.getUser();
+  const currentUserId = auth.user?.id ?? null;
+
+  const { data: defRow, error: insertErr } = await supabase
+    .from("definitions")
+    .insert({
+      term_id: termRow!.id,
+      text: definition,
+      source,
+      weight: 0.5,
+      status: "pending",
+      user_id: currentUserId,
+    })
+    .select("id")
+    .single();
+
+  if (insertErr) {
+    return NextResponse.json({ error: insertErr.message }, { status: 500 });
   }
 
-  const candidate: DefinitionCandidate = {
-    id: `${slug}-${Date.now()}`,
-    text: definition,
-    source,
-    weight: 0.5,
-  };
-  entry.candidates.push(candidate);
-
-  return NextResponse.json({ ok: true, slug, id: candidate.id });
+  return NextResponse.json({ ok: true, slug, id: defRow!.id });
 }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+type Supa = ReturnType<typeof getSupabaseServerClient>;
+
+async function upsertTerm(
+  supabase: Supa,
+  payload: { slug: string; term: string }
+) {
+  // Try existing
+  const { data: existing } = await supabase
+    .from("terms")
+    .select("id")
+    .eq("slug", payload.slug)
+    .maybeSingle();
+
+  if (existing) {
+    return { data: { id: existing.id } } as const;
+  }
+
+  const { data, error } = await supabase
+    .from("terms")
+    .insert({ slug: payload.slug, term: payload.term })
+    .select("id")
+    .single();
+
+  if (error) throw error;
+  return { data } as const;
+}

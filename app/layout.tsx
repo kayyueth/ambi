@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ambi — Public Definitions Wiki",
+  title: "Ambiguity — Public Definitions Wiki",
   description: "Extract, browse, and review the best public definitions.",
 };
 

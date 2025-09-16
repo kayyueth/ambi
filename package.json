@@ -1,12 +1,13 @@
 {
-  "name": "ambi",
+  "name": "ambiguity",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:supabase": "ts-node scripts/seed-supabase.ts"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.10",
@@ -16,6 +17,8 @@
     "@radix-ui/react-separator": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-tabs": "^1.1.13",
+    "@supabase/ssr": "0.7.0",
+    "@supabase/supabase-js": "2.57.4",
     "@types/multer": "^2.0.0",
     "canvas": "^3.2.0",
     "class-variance-authority": "^0.7.1",
@@ -36,9 +39,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "17.2.2",
     "eslint": "^9",
     "eslint-config-next": "15.5.3",
     "tailwindcss": "^4",
+    "tsx": "4.20.5",
     "tw-animate-css": "^1.3.8",
     "typescript": "^5"
   }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TERMS } from "@/lib/mock-data";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
@@ -7,10 +7,18 @@ export async function GET(req: NextRequest) {
   if (!q) {
     return NextResponse.json({ results: [] });
   }
-  const results = TERMS.filter((t) =>
-    t.term.toLowerCase().includes(q.toLowerCase())
-  ).map((t) => ({ term: t.term, slug: t.slug }));
-  return NextResponse.json({ results, total: TERMS.length });
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("terms")
+    .select("term, slug")
+    .ilike("term", `%${q}%`)
+    .order("term", { ascending: true })
+    .limit(20);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ results: data ?? [] });
 }
 
 export const runtime = "nodejs";

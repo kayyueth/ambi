@@ -2,17 +2,19 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { TERMS, type TermEntry } from "@/lib/mock-data";
 
 export default function Home() {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<"card" | "list">("card");
+  const [results, setResults] = useState<Array<{ term: string; slug: string }>>(
+    []
+  );
+  const [isLoading, setIsLoading] = useState(false);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -20,6 +22,27 @@ export default function Home() {
     if (!trimmed) return;
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   }
+
+  useEffect(() => {
+    let aborted = false;
+    async function loadInitial() {
+      setIsLoading(true);
+      try {
+        // '%' will return a broad set due to ilike('%q%') in the API
+        const res = await fetch(`/api/search?q=%`, { cache: "no-store" });
+        const data = await res.json();
+        if (!aborted) setResults(data.results ?? []);
+      } catch {
+        if (!aborted) setResults([]);
+      } finally {
+        if (!aborted) setIsLoading(false);
+      }
+    }
+    loadInitial();
+    return () => {
+      aborted = true;
+    };
+  }, []);
 
   return (
     <div className="space-y-10 py-10">
@@ -69,15 +92,53 @@ export default function Home() {
 
       {viewMode === "card" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {TERMS.map((term) => (
-            <TermCard key={term.slug} term={term} />
-          ))}
+          {isLoading && <p className="text-center col-span-full">Loading…</p>}
+          {!isLoading &&
+            results.map((t) => (
+              <Card
+                key={t.slug}
+                className="p-6 space-y-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <Link
+                    href={`/term/${t.slug}`}
+                    className="text-lg font-semibold hover:underline"
+                  >
+                    {t.term}
+                  </Link>
+                  <Link
+                    href={`/term/${t.slug}`}
+                    className="text-sm text-blue-600 hover:text-blue-800"
+                  >
+                    View →
+                  </Link>
+                </div>
+              </Card>
+            ))}
         </div>
       ) : (
         <div className="space-y-3">
-          {TERMS.map((term) => (
-            <TermListItem key={term.slug} term={term} />
-          ))}
+          {isLoading && <p className="text-center">Loading…</p>}
+          {!isLoading &&
+            results.map((t) => (
+              <div
+                key={t.slug}
+                className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 px-1 rounded"
+              >
+                <Link
+                  href={`/term/${t.slug}`}
+                  className="font-medium text-gray-900 hover:text-blue-600 hover:underline truncate"
+                >
+                  {t.term}
+                </Link>
+                <Link
+                  href={`/term/${t.slug}`}
+                  className="text-sm text-blue-600 hover:text-blue-800 ml-4 flex-shrink-0"
+                >
+                  →
+                </Link>
+              </div>
+            ))}
         </div>
       )}
 
@@ -194,83 +255,6 @@ function ViewToggle({
         </svg>
         List
       </Button>
-    </div>
-  );
-}
-
-function TermCard({ term }: { term: TermEntry }) {
-  const bestDefinition = term.candidates.reduce((best, current) =>
-    current.weight > best.weight ? current : best
-  );
-
-  return (
-    <Card className="p-6 space-y-4 hover:shadow-md transition-shadow">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Link
-            href={`/term/${term.slug}`}
-            className="text-lg font-semibold hover:underline"
-          >
-            {term.term}
-          </Link>
-          <Badge variant="secondary">
-            {term.candidates.length} definition
-            {term.candidates.length !== 1 ? "s" : ""}
-          </Badge>
-        </div>
-
-        <p className="text-sm text-muted-foreground line-clamp-3">
-          {bestDefinition.text}
-        </p>
-
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>{bestDefinition.source}</span>
-          <span>Weight: {bestDefinition.weight.toFixed(2)}</span>
-        </div>
-      </div>
-
-      <div className="pt-2 border-t">
-        <Link
-          href={`/term/${term.slug}`}
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
-        >
-          View all definitions →
-        </Link>
-      </div>
-    </Card>
-  );
-}
-
-function TermListItem({ term }: { term: TermEntry }) {
-  const bestDefinition = term.candidates.reduce((best, current) =>
-    current.weight > best.weight ? current : best
-  );
-
-  return (
-    <div className="flex items-center justify-between py-3 border-b border-gray-100 hover:bg-gray-50 px-1 rounded">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-3">
-          <Link
-            href={`/term/${term.slug}`}
-            className="font-medium text-gray-900 hover:text-blue-600 hover:underline truncate"
-          >
-            {term.term}
-          </Link>
-          <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            {term.candidates.length}
-          </span>
-        </div>
-        <p className="text-sm text-gray-600 mt-1 line-clamp-1">
-          {bestDefinition.text}
-        </p>
-      </div>
-
-      <Link
-        href={`/term/${term.slug}`}
-        className="text-sm text-blue-600 hover:text-blue-800 ml-4 flex-shrink-0"
-      >
-        →
-      </Link>
     </div>
   );
 }

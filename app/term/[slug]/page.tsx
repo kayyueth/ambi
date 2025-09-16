@@ -14,6 +14,7 @@ export default function TermDetailPage(props: PageProps) {
   const [candidates, setCandidates] = useState<
     Array<{ id: string; text: string; source: string; weight: number }>
   >([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -30,12 +31,13 @@ export default function TermDetailPage(props: PageProps) {
     let aborted = false;
     async function load() {
       if (!slug) return;
+      setIsLoading(true);
       const res = await fetch(`/api/term/${slug}`, { cache: "no-store" });
-      if (!res.ok) return;
-      const data = await res.json();
+      const data = res.ok ? await res.json() : {};
       if (aborted) return;
       setName(data.term);
       setCandidates(data.candidates ?? []);
+      setIsLoading(false);
     }
     load();
     return () => {
@@ -71,7 +73,9 @@ export default function TermDetailPage(props: PageProps) {
       <section className="space-y-2">
         <h2 className="text-xl font-medium">Candidate definitions</h2>
         <div className="space-y-3">
-          {candidates.length > 0 ? (
+          {isLoading ? (
+            <p className="text-muted-foreground">Loading…</p>
+          ) : candidates.length > 0 ? (
             candidates.map((c) => (
               <DefinitionCard
                 key={c.id}
@@ -87,9 +91,10 @@ export default function TermDetailPage(props: PageProps) {
 
       <section className="space-y-2">
         <h2 className="text-xl font-medium">History & provenance</h2>
-        <ul className="list-disc pl-6 text-sm text-muted-foreground">
-          <li>Seed data and in-memory uploads</li>
-        </ul>
+        <p className="text-sm text-muted-foreground">
+          Backed by Supabase with public read access; contributions require
+          sign-in.
+        </p>
       </section>
     </div>
   );
