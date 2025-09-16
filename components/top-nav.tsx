@@ -31,7 +31,7 @@ export function TopNav() {
     <header className="w-full sticky top-0 z-40 border-b bg-background/80 backdrop-blur">
       <div className="mx-auto max-w-6xl px-4 h-14 flex items-center gap-3">
         <Link href="/" className="font-semibold tracking-tight">
-          Ambi
+          Ambiguity
         </Link>
         <Separator orientation="vertical" className="h-6" />
         <form onSubmit={onSearchSubmit} className="flex-1 max-w-xl">
@@ -43,7 +43,9 @@ export function TopNav() {
         </form>
         <nav className="flex items-center gap-2 ml-auto">
           <Link href="/upload">
-            <Button variant="secondary" size="sm">上传</Button>
+            <Button variant="secondary" size="sm">
+              上传
+            </Button>
           </Link>
           <Link href="/review">
             <Button size="sm">审阅</Button>
@@ -93,5 +95,3 @@ function ProfileMenu() {
 }
 
 export default TopNav;
-
-

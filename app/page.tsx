@@ -25,7 +25,7 @@ export default function Home() {
     <div className="space-y-10 py-10">
       <section className="text-center space-y-4">
         <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
-          Ambi · Public Definitions
+          Ambiguity · Public Definitions
         </h1>
         <p className="text-muted-foreground max-w-2xl mx-auto">
           Extract, browse, and review the best shared definitions. Build a

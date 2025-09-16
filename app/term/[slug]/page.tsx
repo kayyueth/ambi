@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ShareButton } from "@/components/share-button";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -48,14 +49,23 @@ export default function TermDetailPage(props: PageProps) {
     <div className="space-y-6">
       <div className="flex items-baseline justify-between gap-4">
         <h1 className="text-3xl font-semibold">{decoded}</h1>
-        {decoded && (
-          <Link
-            className="underline"
-            href={`/upload?term=${encodeURIComponent(decoded)}`}
-          >
-            Upload definition
-          </Link>
-        )}
+        <div className="flex items-center gap-3">
+          {candidates.length > 0 && decoded && (
+            <ShareButton
+              term={decoded}
+              candidates={candidates}
+              slug={slug || ""}
+            />
+          )}
+          {decoded && (
+            <Link
+              className="underline"
+              href={`/upload?term=${encodeURIComponent(decoded)}`}
+            >
+              Upload definition
+            </Link>
+          )}
+        </div>
       </div>
 
       <section className="space-y-2">
