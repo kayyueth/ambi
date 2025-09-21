@@ -6,45 +6,63 @@ export async function GET(
   context: { params: Promise<{ slug: string }> }
 ) {
   const { slug } = await context.params;
-  const supabase = getSupabaseServerClient();
 
-  const { data: termRow, error: termError } = await supabase
-    .from("terms")
-    .select("id, term, slug")
-    .eq("slug", slug)
-    .maybeSingle();
+  try {
+    const supabase = await getSupabaseServerClient();
 
-  if (termError) {
-    return NextResponse.json({ error: termError.message }, { status: 500 });
+    // Fetch term and its published definitions
+    const { data: termData, error: termError } = await supabase
+      .from("terms")
+      .select(
+        `
+        id,
+        term,
+        slug,
+        definitions (
+          id,
+          text,
+          source,
+          weight,
+          status,
+          user_id,
+          created_at,
+          updated_at
+        )
+      `
+      )
+      .eq("slug", slug)
+      .single();
+
+    if (termError || !termData) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Filter to only published definitions for public access
+    const publishedDefinitions =
+      termData.definitions?.filter((def: any) => def.status === "published") ||
+      [];
+
+    return NextResponse.json({
+      term: termData.term,
+      slug: termData.slug,
+      candidates: publishedDefinitions.map((def: any) => ({
+        id: def.id,
+        text: def.text,
+        source: def.source,
+        weight: def.weight,
+        status: def.status,
+        userId: def.user_id,
+        createdAt: def.created_at,
+        updatedAt: def.updated_at,
+      })),
+    });
+  } catch (error) {
+    console.error("Term fetch error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch term" },
+      { status: 500 }
+    );
   }
-  if (!termRow) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-
-  const { data: defs, error: defsError } = await supabase
-    .from("definitions")
-    .select("id, text, source, weight, status, user_id, created_at, updated_at")
-    .eq("term_id", termRow.id)
-    .order("weight", { ascending: false });
-
-  if (defsError) {
-    return NextResponse.json({ error: defsError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    term: termRow.term,
-    slug: termRow.slug,
-    candidates: (defs ?? []).map((d) => ({
-      id: d.id,
-      text: d.text,
-      source: d.source,
-      weight: d.weight,
-      userId: d.user_id ?? undefined,
-      status: d.status,
-      createdAt: d.created_at,
-      updatedAt: d.updated_at,
-    })),
-  });
 }
 
 export const runtime = "nodejs";

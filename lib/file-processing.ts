@@ -18,14 +18,20 @@ export async function extractTextFromPDF(
   buffer: Buffer
 ): Promise<FileProcessingResult> {
   try {
+    console.log("Starting PDF text extraction...");
+
     // Dynamic import to avoid Next.js issues
     if (!pdf) {
+      console.log("Importing pdf-parse...");
       const pdfModule = await import("pdf-parse");
       pdf = pdfModule.default;
     }
 
+    console.log("Parsing PDF...");
     const data = await pdf(buffer);
     const text = data.text.trim();
+
+    console.log("PDF extraction result:", { textLength: text.length });
 
     if (!text) {
       return {
@@ -40,6 +46,7 @@ export async function extractTextFromPDF(
       method: "pdf-text",
     };
   } catch (error) {
+    console.error("PDF processing error:", error);
     return {
       text: "",
       method: "pdf-text",
@@ -61,6 +68,8 @@ export async function extractTextFromImage(
   mimeType: string
 ): Promise<FileProcessingResult> {
   try {
+    console.log("Starting OCR processing for image type:", mimeType);
+
     // Validate image type
     const supportedTypes = [
       "image/jpeg",
@@ -80,20 +89,24 @@ export async function extractTextFromImage(
 
     // Dynamic import to avoid Next.js issues
     if (!createWorker) {
+      console.log("Importing tesseract.js...");
       const tesseractModule = await import("tesseract.js");
       createWorker = tesseractModule.createWorker;
     }
 
+    console.log("Creating Tesseract worker...");
     const worker = await createWorker("eng", 1, {
-      logger: (m) => console.log(m),
+      logger: (m) => console.log("Tesseract:", m),
     });
 
+    console.log("Recognizing text from image...");
     const {
       data: { text, confidence },
     } = await worker.recognize(buffer);
     await worker.terminate();
 
     const cleanText = text.trim();
+    console.log("OCR result:", { textLength: cleanText.length, confidence });
 
     if (!cleanText) {
       return {
@@ -110,6 +123,7 @@ export async function extractTextFromImage(
       confidence: confidence || 0,
     };
   } catch (error) {
+    console.error("OCR processing error:", error);
     return {
       text: "",
       method: "ocr",
@@ -187,9 +201,16 @@ export function validateFile(file: File): { valid: boolean; error?: string } {
 export async function processUploadedFile(
   file: File
 ): Promise<FileProcessingResult> {
+  console.log("Processing uploaded file:", {
+    name: file.name,
+    type: file.type,
+    size: file.size,
+  });
+
   // Validate file first
   const validation = validateFile(file);
   if (!validation.valid) {
+    console.log("File validation failed:", validation.error);
     return {
       text: "",
       method: "pdf-text",
@@ -201,14 +222,19 @@ export async function processUploadedFile(
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = file.type;
 
+    console.log("File buffer created, size:", buffer.length);
+
     // Handle PDF files
     if (mimeType === "application/pdf") {
+      console.log("Processing PDF file...");
       const hasSelectableText = await isPDFSelectableText(buffer);
 
       if (hasSelectableText) {
+        console.log("PDF has selectable text, extracting...");
         // Extract text directly from PDF
         return await extractTextFromPDF(buffer);
       } else {
+        console.log("PDF appears to be scanned, suggesting image upload");
         // For scanned PDFs, we would need to convert to image first
         // For now, we'll return an error suggesting the user upload as image
         return {
@@ -222,16 +248,19 @@ export async function processUploadedFile(
 
     // Handle image files
     if (mimeType.startsWith("image/")) {
+      console.log("Processing image file...");
       return await extractTextFromImage(buffer, mimeType);
     }
 
     // Unsupported file type (shouldn't reach here due to validation)
+    console.log("Unsupported file type:", mimeType);
     return {
       text: "",
       method: "pdf-text",
       error: `Unsupported file type: ${mimeType}. Please upload PDF or image files.`,
     };
   } catch (error) {
+    console.error("File processing error:", error);
     return {
       text: "",
       method: "pdf-text",

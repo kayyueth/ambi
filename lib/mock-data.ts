@@ -158,7 +158,9 @@ export function findBySlug(slug: string): TermEntry | undefined {
 
 export function searchTerms(query: string): TermEntry[] {
   const q = query.trim().toLowerCase();
-  if (!q) return [];
+  if (!q || q === "%") {
+    return TERMS; // Return all terms for empty query or '%'
+  }
   return TERMS.filter((t) => t.term.toLowerCase().includes(q));
 }
 
@@ -238,4 +240,41 @@ export function findContributionById(candidateId: string): {
     }
   }
   return null;
+}
+
+export function addNewContribution(
+  term: string,
+  definition: string,
+  source: string,
+  userId?: string
+): { success: boolean; slug: string; id: string } {
+  const slug = toSlug(term);
+  const id = `new-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Find existing term or create new one
+  let termEntry = TERMS.find((t) => t.slug === slug);
+  if (!termEntry) {
+    termEntry = {
+      term,
+      slug,
+      candidates: [],
+    };
+    TERMS.push(termEntry);
+  }
+
+  // Add new candidate
+  const newCandidate: DefinitionCandidate = {
+    id,
+    text: definition,
+    source,
+    weight: 0.5,
+    userId: userId || "anonymous",
+    status: "pending",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  termEntry.candidates.push(newCandidate);
+
+  return { success: true, slug, id };
 }

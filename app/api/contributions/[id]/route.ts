@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  updateContributionStatus,
-  deleteContribution,
-  findContributionById,
-} from "@/lib/mock-data";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 export async function PATCH(
   req: NextRequest,
@@ -27,11 +23,17 @@ export async function PATCH(
       );
     }
 
-    const success = updateContributionStatus(id, status);
+    const supabase = await getSupabaseServerClient();
 
-    if (!success) {
+    const { error } = await supabase
+      .from("definitions")
+      .update({ status })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase update error:", error);
       return NextResponse.json(
-        { error: "Contribution not found" },
+        { error: "Contribution not found or update failed" },
         { status: 404 }
       );
     }
@@ -56,11 +58,14 @@ export async function DELETE(
   try {
     const { id } = await context.params;
 
-    const success = deleteContribution(id);
+    const supabase = await getSupabaseServerClient();
 
-    if (!success) {
+    const { error } = await supabase.from("definitions").delete().eq("id", id);
+
+    if (error) {
+      console.error("Supabase delete error:", error);
       return NextResponse.json(
-        { error: "Contribution not found" },
+        { error: "Contribution not found or delete failed" },
         { status: 404 }
       );
     }
@@ -85,9 +90,30 @@ export async function GET(
   try {
     const { id } = await context.params;
 
-    const contribution = findContributionById(id);
+    const supabase = await getSupabaseServerClient();
 
-    if (!contribution) {
+    const { data: contribution, error } = await supabase
+      .from("definitions")
+      .select(
+        `
+        id,
+        text,
+        source,
+        weight,
+        status,
+        user_id,
+        created_at,
+        updated_at,
+        terms (
+          term,
+          slug
+        )
+      `
+      )
+      .eq("id", id)
+      .single();
+
+    if (error || !contribution) {
       return NextResponse.json(
         { error: "Contribution not found" },
         { status: 404 }
@@ -96,7 +122,22 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      data: contribution,
+      data: {
+        term: {
+          term: contribution.terms?.term,
+          slug: contribution.terms?.slug,
+        },
+        candidate: {
+          id: contribution.id,
+          text: contribution.text,
+          source: contribution.source,
+          weight: contribution.weight,
+          userId: contribution.user_id,
+          status: contribution.status,
+          createdAt: contribution.created_at,
+          updatedAt: contribution.updated_at,
+        },
+      },
     });
   } catch (error) {
     console.error("Error fetching contribution:", error);

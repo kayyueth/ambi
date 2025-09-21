@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { toSlug } from "@/lib/mock-data";
-import { getSupabaseServerClient } from "@/lib/supabase/server";
 import {
   processUploadedFile,
   type FileProcessingResult,
 } from "@/lib/file-processing";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 type UploadBody = {
   term: string;
@@ -18,6 +18,98 @@ type FileUploadBody = {
   source?: string;
   userId?: string;
 };
+
+// Supabase integration functions
+async function saveToSupabase(
+  term: string,
+  definition: string,
+  source: string,
+  userId?: string
+): Promise<{ success: boolean; slug: string; id: string; error?: string }> {
+  try {
+    const supabase = await getSupabaseServerClient();
+    const slug = toSlug(term);
+
+    // First, ensure the term exists
+    let { data: termData, error: termError } = await supabase
+      .from("terms")
+      .select("id")
+      .eq("slug", slug)
+      .single();
+
+    let termId: string;
+
+    if (termError && termError.code === "PGRST116") {
+      // Term doesn't exist, create it
+      const { data: newTerm, error: createError } = await supabase
+        .from("terms")
+        .insert({
+          slug,
+          term,
+        })
+        .select("id")
+        .single();
+
+      if (createError) {
+        return {
+          success: false,
+          slug,
+          id: "",
+          error: `Failed to create term: ${createError.message}`,
+        };
+      }
+
+      termId = newTerm.id;
+    } else if (termError) {
+      return {
+        success: false,
+        slug,
+        id: "",
+        error: `Failed to check term: ${termError.message}`,
+      };
+    } else {
+      termId = termData.id;
+    }
+
+    // Insert the definition
+    const { data: definitionData, error: defError } = await supabase
+      .from("definitions")
+      .insert({
+        term_id: termId,
+        text: definition,
+        source,
+        weight: 0.5,
+        status: "pending",
+        user_id: userId || null,
+      })
+      .select("id")
+      .single();
+
+    if (defError) {
+      return {
+        success: false,
+        slug,
+        id: "",
+        error: `Failed to save definition: ${defError.message}`,
+      };
+    }
+
+    return {
+      success: true,
+      slug,
+      id: definitionData.id,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      slug: toSlug(term),
+      id: "",
+      error: `Database error: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    };
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -76,35 +168,28 @@ async function handleFileUpload(req: NextRequest) {
     }
 
     // Persist to Supabase
-    const slug = toSlug(term.trim());
-    const supabase = getSupabaseServerClient();
+    const result_data = await saveToSupabase(
+      term.trim(),
+      result.text,
+      `${source} (${result.method})`,
+      userId === "anonymous" ? undefined : userId // Don't pass "anonymous" to Supabase
+    );
 
-    const { data: termRow } = await upsertTerm(supabase, {
-      slug,
-      term: term.trim(),
-    });
-
-    const { data: auth } = await supabase.auth.getUser();
-    const currentUserId = auth.user?.id ?? null;
-
-    const { data: defRow, error: insertErr } = await supabase
-      .from("definitions")
-      .insert({
-        term_id: termRow!.id,
-        text: result.text,
-        source: `${source} (${result.method})`,
-        weight: result.confidence ? result.confidence / 100 : 0.5,
-        status: "pending",
-        user_id: currentUserId,
-      })
-      .select("id")
-      .single();
-
-    if (insertErr) {
-      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    if (!result_data.success) {
+      return NextResponse.json(
+        { error: result_data.error || "Failed to save contribution" },
+        { status: 500 }
+      );
     }
 
-    return NextResponse.json({ ok: true, slug, id: defRow!.id });
+    return NextResponse.json({
+      ok: true,
+      slug: result_data.slug,
+      id: result_data.id,
+      extractedText: result.text,
+      method: result.method,
+      confidence: result.confidence,
+    });
   } catch (err) {
     console.error("/api/upload file upload error", err);
     return NextResponse.json(
@@ -137,60 +222,27 @@ async function handleTextUpload(body: Partial<UploadBody>) {
     );
   }
 
-  const slug = toSlug(term);
-  const supabase = getSupabaseServerClient();
+  // Persist to Supabase
+  const result_data = await saveToSupabase(
+    term,
+    definition,
+    source,
+    userId === "anonymous" ? undefined : userId // Don't pass "anonymous" to Supabase
+  );
 
-  const { data: termRow } = await upsertTerm(supabase, { slug, term });
-
-  const { data: auth } = await supabase.auth.getUser();
-  const currentUserId = auth.user?.id ?? null;
-
-  const { data: defRow, error: insertErr } = await supabase
-    .from("definitions")
-    .insert({
-      term_id: termRow!.id,
-      text: definition,
-      source,
-      weight: 0.5,
-      status: "pending",
-      user_id: currentUserId,
-    })
-    .select("id")
-    .single();
-
-  if (insertErr) {
-    return NextResponse.json({ error: insertErr.message }, { status: 500 });
+  if (!result_data.success) {
+    return NextResponse.json(
+      { error: result_data.error || "Failed to save contribution" },
+      { status: 500 }
+    );
   }
 
-  return NextResponse.json({ ok: true, slug, id: defRow!.id });
+  return NextResponse.json({
+    ok: true,
+    slug: result_data.slug,
+    id: result_data.id,
+  });
 }
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-type Supa = ReturnType<typeof getSupabaseServerClient>;
-
-async function upsertTerm(
-  supabase: Supa,
-  payload: { slug: string; term: string }
-) {
-  // Try existing
-  const { data: existing } = await supabase
-    .from("terms")
-    .select("id")
-    .eq("slug", payload.slug)
-    .maybeSingle();
-
-  if (existing) {
-    return { data: { id: existing.id } } as const;
-  }
-
-  const { data, error } = await supabase
-    .from("terms")
-    .insert({ slug: payload.slug, term: payload.term })
-    .select("id")
-    .single();
-
-  if (error) throw error;
-  return { data } as const;
-}

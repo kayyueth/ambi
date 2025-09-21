@@ -8,8 +8,8 @@ function getEnv(name: string): string {
   return value;
 }
 
-export function getSupabaseServerClient(): SupabaseClient {
-  const cookieStore = cookies();
+export async function getSupabaseServerClient(): Promise<SupabaseClient> {
+  const cookieStore = await cookies();
 
   const client = createServerClient(
     getEnv("NEXT_PUBLIC_SUPABASE_URL"),

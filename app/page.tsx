@@ -15,6 +15,11 @@ export default function Home() {
     []
   );
   const [isLoading, setIsLoading] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -24,15 +29,19 @@ export default function Home() {
   }
 
   useEffect(() => {
+    if (!mounted) return;
+
     let aborted = false;
     async function loadInitial() {
       setIsLoading(true);
       try {
-        // '%' will return a broad set due to ilike('%q%') in the API
         const res = await fetch(`/api/search?q=%`, { cache: "no-store" });
         const data = await res.json();
-        if (!aborted) setResults(data.results ?? []);
-      } catch {
+        if (!aborted) {
+          setResults(data.results ?? []);
+        }
+      } catch (error) {
+        console.error("Error loading data:", error);
         if (!aborted) setResults([]);
       } finally {
         if (!aborted) setIsLoading(false);
@@ -42,7 +51,7 @@ export default function Home() {
     return () => {
       aborted = true;
     };
-  }, []);
+  }, [mounted]);
 
   return (
     <div className="space-y-10 py-10">
@@ -93,6 +102,11 @@ export default function Home() {
       {viewMode === "card" ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {isLoading && <p className="text-center col-span-full">Loading…</p>}
+          {!isLoading && results.length === 0 && (
+            <p className="text-center col-span-full text-muted-foreground">
+              No terms found.
+            </p>
+          )}
           {!isLoading &&
             results.map((t) => (
               <Card

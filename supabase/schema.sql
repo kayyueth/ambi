@@ -2,7 +2,6 @@
 create extension if not exists pg_trgm;
 
 -- Terms and Definitions schema for Supabase
-
 create table if not exists public.terms (
   id uuid primary key default gen_random_uuid(),
   slug text unique not null,
@@ -32,28 +31,51 @@ create index if not exists definitions_status_idx on public.definitions(status);
 alter table public.terms enable row level security;
 alter table public.definitions enable row level security;
 
--- Policies: Terms are readable by anyone; inserts/updates only by authenticated users
-create policy if not exists terms_read_all on public.terms
-  for select using (true);
+-- 🔐 Policies (drop-if-exists to keep migration idempotent)
+-- TERMS
+drop policy if exists terms_read_all on public.terms;
+create policy terms_read_all on public.terms
+  for select
+  using (true);
 
-create policy if not exists terms_write_auth on public.terms
-  for all to authenticated using (true) with check (true);
+drop policy if exists terms_write_auth on public.terms;
+-- WARNING: FOR ALL includes DELETE. If you don't want that, use "for insert, update".
+create policy terms_write_auth on public.terms
+  for all
+  to authenticated
+  using (true)
+  with check (true);
 
--- Policies: Definitions readable to all if published; authors can read their own; inserts by authenticated users; updates/deletes only by owner while not published
-create policy if not exists defs_read_published on public.definitions
-  for select using (status = 'published');
+-- DEFINITIONS
+drop policy if exists defs_read_published on public.definitions;
+create policy defs_read_published on public.definitions
+  for select
+  using (status = 'published');
 
-create policy if not exists defs_read_own on public.definitions
-  for select to authenticated using (auth.uid() = user_id);
+drop policy if exists defs_read_own on public.definitions;
+create policy defs_read_own on public.definitions
+  for select
+  to authenticated
+  using (auth.uid() = user_id);
 
-create policy if not exists defs_insert_auth on public.definitions
-  for insert to authenticated with check (auth.uid() = user_id);
+drop policy if exists defs_insert_auth on public.definitions;
+create policy defs_insert_auth on public.definitions
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
 
-create policy if not exists defs_update_own_unpublished on public.definitions
-  for update to authenticated using (auth.uid() = user_id and status != 'published') with check (auth.uid() = user_id and status != 'published');
+drop policy if exists defs_update_own_unpublished on public.definitions;
+create policy defs_update_own_unpublished on public.definitions
+  for update
+  to authenticated
+  using (auth.uid() = user_id and status != 'published')
+  with check (auth.uid() = user_id and status != 'published');
 
-create policy if not exists defs_delete_own_unpublished on public.definitions
-  for delete to authenticated using (auth.uid() = user_id and status != 'published');
+drop policy if exists defs_delete_own_unpublished on public.definitions;
+create policy defs_delete_own_unpublished on public.definitions
+  for delete
+  to authenticated
+  using (auth.uid() = user_id and status != 'published');
 
 -- Updated timestamp triggers
 create or replace function public.set_updated_at()
@@ -65,11 +87,11 @@ end;
 $$ language plpgsql;
 
 drop trigger if exists set_terms_updated_at on public.terms;
-create trigger set_terms_updated_at before update on public.terms
+create trigger set_terms_updated_at
+before update on public.terms
 for each row execute function public.set_updated_at();
 
 drop trigger if exists set_definitions_updated_at on public.definitions;
-create trigger set_definitions_updated_at before update on public.definitions
+create trigger set_definitions_updated_at
+before update on public.definitions
 for each row execute function public.set_updated_at();
-
-
