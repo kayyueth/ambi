@@ -4,22 +4,26 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const q = url.searchParams.get("q")?.trim() ?? "";
-  if (!q) {
-    return NextResponse.json({ results: [] });
-  }
 
   try {
     const supabase = await getSupabaseServerClient();
 
-    // Use PostgreSQL trigram search for fuzzy matching
-    const { data: terms, error } = await supabase
-      .from("terms")
-      .select("term, slug")
-      .textSearch("term", q, {
-        type: "websearch",
-        config: "english",
-      })
-      .limit(20);
+    let query = supabase.from("terms").select("term, slug");
+
+    if (!q || q === "%") {
+      // If no query or wildcard, return all terms
+      query = query.limit(20);
+    } else {
+      // Use PostgreSQL trigram search for fuzzy matching
+      query = query
+        .textSearch("term", q, {
+          type: "websearch",
+          config: "english",
+        })
+        .limit(20);
+    }
+
+    const { data: terms, error } = await query;
 
     if (error) {
       console.error("Supabase search error:", error);
