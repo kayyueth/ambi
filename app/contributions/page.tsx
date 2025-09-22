@@ -1,4 +1,8 @@
-export default function ContributionsPage() {
+"use client";
+
+import { ProtectedRoute } from "@/components/auth/protected-route";
+
+function ContributionsPageContent() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">My Contributions</h1>
@@ -26,4 +30,10 @@ export default function ContributionsPage() {
   );
 }
 
-
+export default function ContributionsPage() {
+  return (
+    <ProtectedRoute>
+      <ContributionsPageContent />
+    </ProtectedRoute>
+  );
+}

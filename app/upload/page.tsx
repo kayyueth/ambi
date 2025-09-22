@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TextPreviewDialog } from "@/components/text-preview-dialog";
+import { ProtectedRoute } from "@/components/auth/protected-route";
 
-export default function UploadPage() {
+function UploadPageContent() {
   const router = useRouter();
   const params = useSearchParams();
   const [term, setTerm] = useState(params.get("term") ?? "");
@@ -181,5 +182,13 @@ export default function UploadPage() {
         fileName={uploadedFileName}
       />
     </div>
+  );
+}
+
+export default function UploadPage() {
+  return (
+    <ProtectedRoute>
+      <UploadPageContent />
+    </ProtectedRoute>
   );
 }
