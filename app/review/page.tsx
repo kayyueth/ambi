@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { nextReviewCard } from "@/lib/mock-data";
+import { Textarea } from "@/components/ui/textarea";
 
 interface Card {
   id: string;
@@ -25,6 +26,8 @@ export default function ReviewPage() {
   const [hoveredSide, setHoveredSide] = useState<"left" | "right" | null>(null);
   const [isHolding, setIsHolding] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
+  const [flagReason, setFlagReason] = useState<string>("");
+  const [flagNotes, setFlagNotes] = useState<string>("");
   const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -112,9 +115,29 @@ export default function ReviewPage() {
     }
   }
 
+  function skip() {
+    setCards((prev) => {
+      const rest = prev.slice(1);
+      const refill = nextReviewCard();
+      if (refill) {
+        rest.push({
+          id: `${refill.candidate.id}-${Date.now()}`,
+          text: `${refill.candidate.text} — ${refill.term.term}`,
+          term: refill.term.slug,
+        });
+      }
+      return rest;
+    });
+    console.log("skip");
+  }
+
   function handleFlagConfirm() {
     setShowFlagDialog(false);
-    console.log("flagged");
+    console.log("flagged", {
+      reason: flagReason,
+      notes: flagNotes,
+      cardId: cards[0]?.id,
+    });
     // Add flag logic here
   }
 
@@ -131,12 +154,36 @@ export default function ReviewPage() {
       } else if (event.key === "ArrowRight") {
         event.preventDefault();
         vote("up");
+      } else if (event.key === "ArrowUp") {
+        event.preventDefault();
+        skip();
+      } else if (event.code === "Space" || event.key === " ") {
+        event.preventDefault();
+        if (isHolding) return;
+        setIsHolding(true);
+        const timer = setTimeout(() => {
+          setShowFlagDialog(true);
+        }, 1000);
+        setHoldTimer(timer);
+      }
+    }
+    function handleKeyUp(event: KeyboardEvent) {
+      if (event.code === "Space" || event.key === " ") {
+        setIsHolding(false);
+        if (holdTimer) {
+          clearTimeout(holdTimer);
+        }
+        setHoldTimer(null);
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [holdTimer, isHolding]);
 
   const current = cards[0];
 
@@ -144,8 +191,8 @@ export default function ReviewPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Review</h1>
       <p className="text-sm text-muted-foreground">
-        Use ← → arrow keys or click left/right sides of the card to vote. Hold
-        card to flag.
+        Use ← → to vote, Space (hold) to flag, ↑ to skip. You can also click
+        left/right sides of the card.
       </p>
       {!isInitialized ? (
         <div className="space-y-4">
@@ -169,20 +216,12 @@ export default function ReviewPage() {
           >
             {/* Left side gradient overlay */}
             {hoveredSide === "left" && (
-              <div className="absolute inset-0 bg-gradient-to-r from-red-500/20 to-transparent rounded-lg pointer-events-none flex items-end justify-start p-6">
-                <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  👈 Lower
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-transparent dark:from-white/10 rounded-lg pointer-events-none" />
             )}
 
             {/* Right side gradient overlay */}
             {hoveredSide === "right" && (
-              <div className="absolute inset-0 bg-gradient-to-l from-green-500/20 to-transparent rounded-lg pointer-events-none flex items-end justify-end p-6">
-                <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  Raise 👉
-                </div>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-l from-black/10 to-transparent dark:from-white/10 rounded-lg pointer-events-none" />
             )}
 
             {/* Hold indicator */}
@@ -191,6 +230,23 @@ export default function ReviewPage() {
             )}
 
             <span className="relative z-10">{current.text}</span>
+          </div>
+          {/* Below-card labels */}
+          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+            <div
+              className={`px-2 py-1 rounded-full border bg-background shadow-sm transition-opacity ${
+                hoveredSide === "left" ? "opacity-100" : "opacity-60"
+              }`}
+            >
+              ← Lower
+            </div>
+            <div
+              className={`px-2 py-1 rounded-full border bg-background shadow-sm transition-opacity ${
+                hoveredSide === "right" ? "opacity-100" : "opacity-60"
+              }`}
+            >
+              Raise →
+            </div>
           </div>
         </div>
       ) : (
@@ -203,15 +259,50 @@ export default function ReviewPage() {
           <DialogHeader>
             <DialogTitle>Flag Content</DialogTitle>
             <DialogDescription>
-              Are you sure you want to flag this content for review? This action
-              will be recorded.
+              Select a reason and optionally add notes. This will be recorded
+              for moderator review.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+              {[
+                "Factual error",
+                "Misdefined scope",
+                "Unreliable source",
+                "Plagiarism / infringement",
+                "Outdated information",
+                "Language issues (ambiguous / mistranslated)",
+                "Other (notes)",
+              ].map((reason) => (
+                <button
+                  key={reason}
+                  type="button"
+                  onClick={() => setFlagReason(reason)}
+                  className={`text-left rounded-md border px-3 py-2 text-sm transition-colors ${
+                    flagReason === reason
+                      ? "border-ring bg-ring/10"
+                      : "hover:bg-muted"
+                  }`}
+                >
+                  {reason}
+                </button>
+              ))}
+            </div>
+            <Textarea
+              placeholder="Add notes (optional)"
+              value={flagNotes}
+              onChange={(e) => setFlagNotes(e.target.value)}
+            />
+          </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleFlagCancel}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleFlagConfirm}>
+            <Button
+              variant="destructive"
+              onClick={handleFlagConfirm}
+              disabled={!flagReason}
+            >
               Flag Content
             </Button>
           </DialogFooter>
