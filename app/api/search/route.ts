@@ -8,10 +8,14 @@ export async function GET(req: NextRequest) {
   try {
     const supabase = await getSupabaseServerClient();
 
-    let query = supabase.from("terms").select("term, slug");
+    // Only show terms that have at least one published definition
+    let query = supabase
+      .from("terms")
+      .select("term, slug, definitions!inner(id)")
+      .eq("definitions.status", "published");
 
     if (!q || q === "%") {
-      // If no query or wildcard, return all terms
+      // If no query or wildcard, return all terms with published definitions
       query = query.limit(20);
     } else {
       // Use PostgreSQL trigram search for fuzzy matching

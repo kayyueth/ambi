@@ -28,6 +28,22 @@ async function saveToSupabase(
 ): Promise<{ success: boolean; slug: string; id: string; error?: string }> {
   try {
     const supabase = await getSupabaseServerClient();
+
+    // Get the authenticated user from the session
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return {
+        success: false,
+        slug: toSlug(term),
+        id: "",
+        error: "Authentication required. Please sign in to upload definitions.",
+      };
+    }
+
     const slug = toSlug(term);
 
     // First, ensure the term exists
@@ -79,8 +95,8 @@ async function saveToSupabase(
         text: definition,
         source,
         weight: 0.5,
-        status: "pending",
-        user_id: userId || null,
+        user_id: user.id, // Use the authenticated user's ID
+        status: "published", // Auto-publish new definitions
       })
       .select("id")
       .single();
@@ -171,8 +187,7 @@ async function handleFileUpload(req: NextRequest) {
     const result_data = await saveToSupabase(
       term.trim(),
       result.text,
-      `${source} (${result.method})`,
-      userId === "anonymous" ? undefined : userId // Don't pass "anonymous" to Supabase
+      `${source} (${result.method})`
     );
 
     if (!result_data.success) {
@@ -223,12 +238,7 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   }
 
   // Persist to Supabase
-  const result_data = await saveToSupabase(
-    term,
-    definition,
-    source,
-    userId === "anonymous" ? undefined : userId // Don't pass "anonymous" to Supabase
-  );
+  const result_data = await saveToSupabase(term, definition, source);
 
   if (!result_data.success) {
     return NextResponse.json(
