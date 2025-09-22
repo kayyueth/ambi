@@ -11,6 +11,7 @@ type UploadBody = {
   definition: string;
   source?: string;
   userId?: string;
+  status?: "draft" | "published";
 };
 
 type FileUploadBody = {
@@ -24,7 +25,8 @@ async function saveToSupabase(
   term: string,
   definition: string,
   source: string,
-  userId?: string
+  userId?: string,
+  status: "draft" | "published" = "published"
 ): Promise<{ success: boolean; slug: string; id: string; error?: string }> {
   try {
     const supabase = await getSupabaseServerClient();
@@ -96,7 +98,7 @@ async function saveToSupabase(
         source,
         weight: 0.5,
         user_id: user.id, // Use the authenticated user's ID
-        status: "published", // Auto-publish new definitions
+        status, // Allow draft or published
       })
       .select("id")
       .single();
@@ -219,6 +221,8 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   const definition = (body.definition ?? "").trim();
   const source = (body.source ?? "User submission").trim();
   const userId = body.userId || "anonymous";
+  const status: "draft" | "published" =
+    body.status === "draft" ? "draft" : "published";
 
   console.log("/api/upload text upload", {
     term,
@@ -230,7 +234,7 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   if (!term) {
     return NextResponse.json({ error: "Term is required" }, { status: 400 });
   }
-  if (!definition || definition.length < 10) {
+  if (status !== "draft" && (!definition || definition.length < 10)) {
     return NextResponse.json(
       { error: "Definition must be at least 10 characters" },
       { status: 400 }
@@ -238,7 +242,13 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   }
 
   // Persist to Supabase
-  const result_data = await saveToSupabase(term, definition, source);
+  const result_data = await saveToSupabase(
+    term,
+    definition,
+    source,
+    undefined,
+    status
+  );
 
   if (!result_data.success) {
     return NextResponse.json(

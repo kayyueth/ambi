@@ -53,6 +53,30 @@ function UploadPageContent() {
     }
   }
 
+  async function onSaveDraft() {
+    setError(null);
+    setSuccess(null);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ term, definition, source, status: "draft" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Save draft failed");
+      }
+      setDefinition("");
+      setSource("");
+      router.push(`/contributions`);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   async function handleFileUpload() {
     if (!fileInputRef.current?.files?.[0]) return;
 
@@ -159,6 +183,14 @@ function UploadPageContent() {
             }
           >
             {isSubmitting ? "Submitting…" : "Submit"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={isSubmitting || isUploading || !term}
+            onClick={onSaveDraft}
+          >
+            {isSubmitting ? "Saving…" : "Save Draft"}
           </Button>
           <Button
             type="button"

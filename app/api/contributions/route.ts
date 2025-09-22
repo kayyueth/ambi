@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
 
     // Group by status
     const contributions = {
-      drafts: [] as any[],
+      draft: [] as any[],
       pending: [] as any[],
       published: [] as any[],
       rejected: [] as any[],
@@ -67,9 +67,10 @@ export async function GET(req: NextRequest) {
         slug: def.terms?.slug,
       };
 
-      contributions[def.status as keyof typeof contributions].push(
-        contribution
-      );
+      const key = def.status as keyof typeof contributions;
+      if (contributions[key]) {
+        contributions[key].push(contribution);
+      }
     });
 
     return NextResponse.json({

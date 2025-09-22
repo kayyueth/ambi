@@ -5,15 +5,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import { AuthButton } from "@/components/auth-button";
 
@@ -39,35 +30,23 @@ export function TopNav() {
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="搜索术语…"
+            placeholder="Search terms…"
           />
         </form>
         <nav className="flex items-center gap-2 ml-auto">
           <Link href="/upload">
             <Button variant="secondary" size="sm">
-              上传
+              Upload
             </Button>
           </Link>
           <Link href="/review">
-            <Button size="sm">审阅</Button>
+            <Button size="sm">Review</Button>
           </Link>
-          <NotificationsBell />
           <AuthButton />
         </nav>
       </div>
     </header>
   );
 }
-
-function NotificationsBell() {
-  return (
-    <Button variant="ghost" size="icon" aria-label="Notifications">
-      <span className="inline-block h-2 w-2 rounded-full bg-red-500 mr-1" />
-      🔔
-    </Button>
-  );
-}
-
-// ProfileMenu replaced by AuthButton
 
 export default TopNav;
