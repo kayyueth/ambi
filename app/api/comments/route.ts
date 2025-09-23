@@ -24,7 +24,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ comments: data ?? [] });
+    const comments = data ?? [];
+    const userIds = Array.from(
+      new Set(comments.map((c: any) => c.user_id).filter(Boolean))
+    );
+    let idToUsername: Record<string, string | null> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("id", userIds as string[]);
+      if (profiles) {
+        idToUsername = profiles.reduce(
+          (acc: Record<string, string | null>, p: any) => {
+            acc[p.id] = p.username ?? null;
+            return acc;
+          },
+          {}
+        );
+      }
+    }
+
+    const enriched = comments.map((c: any) => ({
+      ...c,
+      username: c.user_id ? idToUsername[c.user_id] ?? null : null,
+    }));
+
+    return NextResponse.json({ comments: enriched });
   } catch (err) {
     console.error("Comments GET error:", err);
     return NextResponse.json(
@@ -70,7 +96,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ comment: data }, { status: 201 });
+    // fetch username for the author
+    let username: string | null = null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .maybeSingle();
+    if (profile) username = profile.username ?? null;
+
+    return NextResponse.json(
+      { comment: { ...data, username } },
+      { status: 201 }
+    );
   } catch (err) {
     console.error("Comments POST error:", err);
     return NextResponse.json(

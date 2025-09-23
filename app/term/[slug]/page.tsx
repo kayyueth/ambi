@@ -126,7 +126,7 @@ export default function TermDetailPage(props: PageProps) {
             {isLoading ? (
               <p className="text-muted-foreground">Loading…</p>
             ) : candidates.length > 0 ? (
-              candidates.map((c) => (
+              candidates.map((c: any) => (
                 <button
                   key={c.id}
                   type="button"
@@ -141,9 +141,13 @@ export default function TermDetailPage(props: PageProps) {
                   }`}
                 >
                   <p className="mb-2">{c.text}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Source: {`${c.source} · weight ${c.weight.toFixed(2)}`}
-                  </p>
+                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                    <span>Source: {c.source}</span>
+                    <span>•</span>
+                    <span>weight {c.weight.toFixed(2)}</span>
+                    <span>•</span>
+                    <span>{c.username || "Anonymous"}</span>
+                  </div>
                 </button>
               ))
             ) : (
@@ -176,7 +180,7 @@ export default function TermDetailPage(props: PageProps) {
                       </ul>
                     ) : comments.length > 0 ? (
                       <ul className="space-y-2">
-                        {comments.map((cm) => {
+                        {comments.map((cm: any) => {
                           const isOwner = user?.id === cm.user_id;
                           const isEditing = editingId === cm.id;
                           return (
@@ -236,6 +240,7 @@ export default function TermDetailPage(props: PageProps) {
                                   <p className="text-sm">{cm.body}</p>
                                   <div className="mt-1 flex items-center justify-between">
                                     <p className="text-[11px] text-muted-foreground">
+                                      {cm.username || "Anonymous"} ·{" "}
                                       {new Date(cm.created_at).toLocaleString()}
                                     </p>
                                     {isOwner && (
