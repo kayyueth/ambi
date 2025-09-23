@@ -25,6 +25,15 @@ function ContributionsPageContent() {
     draft: ContributionItem[];
     published: ContributionItem[];
     rejected: ContributionItem[];
+    comments?: Array<{
+      id: string;
+      body: string;
+      createdAt: string;
+      updatedAt: string;
+      definitionId: string;
+      term?: string | null;
+      slug?: string | null;
+    }>;
   }
 
   const [data, setData] = useState<ContributionsGrouped | null>(null);
@@ -58,7 +67,67 @@ function ContributionsPageContent() {
       {isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
       {hasError && <p className="text-sm text-red-600">{hasError}</p>}
       {!isLoading && !hasError && (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <section className="rounded-md border p-4">
+            <h2 className="font-medium mb-2">Published</h2>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              {data && data.published.length > 0 ? (
+                data.published.map((item) => (
+                  <li key={item.id} className="text-foreground">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="block line-clamp-2">{item.text}</span>
+                        {item.slug && (
+                          <Link
+                            href={`/term/${item.slug}`}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            View term
+                          </Link>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li>None</li>
+              )}
+            </ul>
+          </section>
+          <section className="rounded-md border p-4">
+            <h2 className="font-medium mb-2">Comments</h2>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              {data &&
+              Array.isArray((data as any).comments) &&
+              (data as any).comments.length > 0 ? (
+                (data as any).comments.map((c: any) => (
+                  <li key={c.id} className="text-foreground">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="block line-clamp-2">{c.body}</span>
+                        {c.slug && (
+                          <Link
+                            href={`/term/${c.slug}`}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            View term
+                          </Link>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {new Date(c.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </li>
+                ))
+              ) : (
+                <li>No comments</li>
+              )}
+            </ul>
+          </section>
           <section className="rounded-md border p-4">
             <h2 className="font-medium mb-2">Drafts</h2>
             <ul className="text-sm text-muted-foreground space-y-1">
@@ -67,41 +136,26 @@ function ContributionsPageContent() {
               data.draft.length > 0 ? (
                 data.draft.map((item) => (
                   <li key={item.id} className="text-foreground">
-                    <span className="block line-clamp-2">{item.text}</span>
-                    {item.slug && (
-                      <Link
-                        href={`/term/${item.slug}`}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        View term
-                      </Link>
-                    )}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <span className="block line-clamp-2">{item.text}</span>
+                        {item.slug && (
+                          <Link
+                            href={`/term/${item.slug}`}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            View term
+                          </Link>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-muted-foreground shrink-0">
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </li>
                 ))
               ) : (
                 <li>No drafts</li>
-              )}
-            </ul>
-          </section>
-          <section className="rounded-md border p-4">
-            <h2 className="font-medium mb-2">Published</h2>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              {data && data.published.length > 0 ? (
-                data.published.map((item) => (
-                  <li key={item.id} className="text-foreground">
-                    <span className="block line-clamp-2">{item.text}</span>
-                    {item.slug && (
-                      <Link
-                        href={`/term/${item.slug}`}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        View term
-                      </Link>
-                    )}
-                  </li>
-                ))
-              ) : (
-                <li>None</li>
               )}
             </ul>
           </section>

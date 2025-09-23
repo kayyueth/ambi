@@ -27,9 +27,22 @@ create index if not exists terms_term_trgm_idx on public.terms using gin (term g
 create index if not exists definitions_term_id_idx on public.definitions(term_id);
 create index if not exists definitions_status_idx on public.definitions(status);
 
+-- Comments
+create table if not exists public.comments (
+  id uuid primary key default gen_random_uuid(),
+  definition_id uuid not null references public.definitions(id) on delete cascade,
+  user_id uuid references auth.users(id),
+  body text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists comments_definition_id_idx on public.comments(definition_id);
+
 -- Row Level Security
 alter table public.terms enable row level security;
 alter table public.definitions enable row level security;
+alter table public.comments enable row level security;
 
 -- 🔐 Policies (drop-if-exists to keep migration idempotent)
 -- TERMS
@@ -77,6 +90,31 @@ create policy defs_delete_own_unpublished on public.definitions
   to authenticated
   using (auth.uid() = user_id and status != 'published');
 
+-- COMMENTS
+drop policy if exists comments_read_all on public.comments;
+create policy comments_read_all on public.comments
+  for select
+  using (true);
+
+drop policy if exists comments_insert_auth on public.comments;
+create policy comments_insert_auth on public.comments
+  for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+drop policy if exists comments_update_own on public.comments;
+create policy comments_update_own on public.comments
+  for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+drop policy if exists comments_delete_own on public.comments;
+create policy comments_delete_own on public.comments
+  for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 -- Updated timestamp triggers
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -94,4 +132,9 @@ for each row execute function public.set_updated_at();
 drop trigger if exists set_definitions_updated_at on public.definitions;
 create trigger set_definitions_updated_at
 before update on public.definitions
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_comments_updated_at on public.comments;
+create trigger set_comments_updated_at
+before update on public.comments
 for each row execute function public.set_updated_at();
