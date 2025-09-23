@@ -44,6 +44,17 @@ alter table public.terms enable row level security;
 alter table public.definitions enable row level security;
 alter table public.comments enable row level security;
 
+-- User Profiles
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  username text unique,
+  subject text,
+  school text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table public.profiles enable row level security;
+
 -- 🔐 Policies (drop-if-exists to keep migration idempotent)
 -- TERMS
 drop policy if exists terms_read_all on public.terms;
@@ -115,6 +126,26 @@ create policy comments_delete_own on public.comments
   to authenticated
   using (auth.uid() = user_id);
 
+-- PROFILES
+drop policy if exists profiles_read_own on public.profiles;
+create policy profiles_read_own on public.profiles
+  for select
+  to authenticated
+  using (auth.uid() = id);
+
+drop policy if exists profiles_upsert_own on public.profiles;
+create policy profiles_upsert_own on public.profiles
+  for insert
+  to authenticated
+  with check (auth.uid() = id);
+
+drop policy if exists profiles_update_own on public.profiles;
+create policy profiles_update_own on public.profiles
+  for update
+  to authenticated
+  using (auth.uid() = id)
+  with check (auth.uid() = id);
+
 -- Updated timestamp triggers
 create or replace function public.set_updated_at()
 returns trigger as $$
@@ -137,4 +168,9 @@ for each row execute function public.set_updated_at();
 drop trigger if exists set_comments_updated_at on public.comments;
 create trigger set_comments_updated_at
 before update on public.comments
+for each row execute function public.set_updated_at();
+
+drop trigger if exists set_profiles_updated_at on public.profiles;
+create trigger set_profiles_updated_at
+before update on public.profiles
 for each row execute function public.set_updated_at();
