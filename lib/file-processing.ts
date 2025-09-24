@@ -1,6 +1,6 @@
 // Dynamic imports to avoid issues with Next.js
-let pdf: any = null;
-let createWorker: any = null;
+let pdf: typeof import("pdf-parse").default | null = null;
+let createWorker: typeof import("tesseract.js").createWorker | null = null;
 
 export interface FileProcessingResult {
   text: string;

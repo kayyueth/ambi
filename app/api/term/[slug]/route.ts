@@ -38,13 +38,24 @@ export async function GET(
     }
 
     // Filter to only published definitions for public access
+    interface DefinitionItem {
+      id: string;
+      text: string;
+      source: string;
+      weight: number | null;
+      status: string;
+      user_id: string;
+      created_at: string;
+      updated_at: string;
+    }
+    
     const publishedDefinitions =
-      termData.definitions?.filter((def: any) => def.status === "published") ||
+      (termData.definitions as DefinitionItem[] | undefined)?.filter((def) => def.status === "published") ||
       [];
 
     // Lookup usernames for author ids
     const authorIds = Array.from(
-      new Set(publishedDefinitions.map((d: any) => d.user_id).filter(Boolean))
+      new Set(publishedDefinitions.map((d) => d.user_id).filter(Boolean))
     );
     let idToUsername: Record<string, string | null> = {};
     if (authorIds.length > 0) {
@@ -54,7 +65,7 @@ export async function GET(
         .in("id", authorIds as string[]);
       if (profiles) {
         idToUsername = profiles.reduce(
-          (acc: Record<string, string | null>, p: any) => {
+          (acc: Record<string, string | null>, p: { id: string; username: string | null }) => {
             acc[p.id] = p.username ?? null;
             return acc;
           },
@@ -66,7 +77,7 @@ export async function GET(
     return NextResponse.json({
       term: termData.term,
       slug: termData.slug,
-      candidates: publishedDefinitions.map((def: any) => ({
+      candidates: publishedDefinitions.map((def) => ({
         id: def.id,
         text: def.text,
         source: def.source,

@@ -40,7 +40,9 @@ export function TopNav() {
             </Button>
           </Link>
           <Link href="/review">
-            <Button size="sm">Review</Button>
+            <Button variant="secondary" size="sm">
+              Review
+            </Button>
           </Link>
           <AuthButton />
         </nav>

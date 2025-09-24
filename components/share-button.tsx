@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -9,7 +10,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Toast, useToast } from "@/components/ui/toast";
-import html2canvas from "html2canvas";
 
 interface ShareButtonProps {
   term: string;
@@ -46,7 +46,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       document.removeEventListener("keydown", handleEscapeKey);
       document.body.style.overflow = "unset";
     };
-  }, [showPreview]);
+  }, [showPreview, closePreview]);
 
   async function generateShareCard() {
     setIsGenerating(true);
@@ -161,238 +161,6 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
     } finally {
       setIsGenerating(false);
     }
-  }
-
-  function createCanvasCard(
-    term: string,
-    bestDefinition: { text: string; source: string; weight: number },
-    totalCandidates: number
-  ): HTMLCanvasElement {
-    // Create canvas
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Could not get canvas context");
-
-    // Add roundRect polyfill if not available
-    if (!ctx.roundRect) {
-      ctx.roundRect = function (
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        radius: number
-      ) {
-        this.beginPath();
-        this.moveTo(x + radius, y);
-        this.lineTo(x + width - radius, y);
-        this.quadraticCurveTo(x + width, y, x + width, y + radius);
-        this.lineTo(x + width, y + height - radius);
-        this.quadraticCurveTo(
-          x + width,
-          y + height,
-          x + width - radius,
-          y + height
-        );
-        this.lineTo(x + radius, y + height);
-        this.quadraticCurveTo(x, y + height, x, y + height - radius);
-        this.lineTo(x, y + radius);
-        this.quadraticCurveTo(x, y, x + radius, y);
-        this.closePath();
-      };
-    }
-
-    // Set canvas size - Spotify-style dimensions
-    const width = 800;
-    const height = 400;
-    canvas.width = width;
-    canvas.height = height;
-
-    // Simplified canvas setup - no DPI scaling for now
-    canvas.width = width;
-    canvas.height = height;
-
-    // Debug: Log canvas dimensions
-    console.log("Canvas dimensions:", canvas.width, canvas.height);
-    console.log("Scaled dimensions:", width, height);
-
-    // Helper function to wrap text
-    function wrapText(
-      text: string,
-      x: number,
-      y: number,
-      maxWidth: number,
-      lineHeight: number
-    ): number {
-      if (!ctx) return y;
-      ctx.textBaseline = "top";
-      const words = text.split(" ");
-      let line = "";
-      let currentY = y;
-
-      for (let n = 0; n < words.length; n++) {
-        const testLine = line + words[n] + " ";
-        const metrics = ctx.measureText(testLine);
-        const testWidth = metrics.width;
-
-        if (testWidth > maxWidth && n > 0) {
-          ctx.fillText(line, x, currentY);
-          line = words[n] + " ";
-          currentY += lineHeight;
-        } else {
-          line = testLine;
-        }
-      }
-      ctx.fillText(line, x, currentY);
-      return currentY + lineHeight;
-    }
-
-    // Spotify-style dark background
-    ctx.fillStyle = "#121212";
-    ctx.fillRect(0, 0, width, height);
-
-    // Debug: Draw a test rectangle to verify canvas is working
-    ctx.fillStyle = "#ff0000";
-    ctx.fillRect(10, 10, 50, 20);
-    console.log("Canvas context working, drawing test rectangle");
-
-    // Debug: Draw simple test text
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "30px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText("TEST TEXT", 100, 50);
-    console.log("Drawing test text at 100, 50");
-
-    // Add subtle gradient overlay
-    const overlayGradient = ctx.createLinearGradient(0, 0, width, height);
-    overlayGradient.addColorStop(0, "rgba(29, 185, 84, 0.1)");
-    overlayGradient.addColorStop(0.5, "rgba(30, 215, 96, 0.05)");
-    overlayGradient.addColorStop(1, "rgba(25, 20, 20, 0.8)");
-    ctx.fillStyle = overlayGradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Main content area (Spotify card style)
-    const cardWidth = width - 80;
-    const cardHeight = height - 60;
-    const cardX = 40;
-    const cardY = 30;
-
-    // Draw main card background with subtle border
-    ctx.fillStyle = "#181818";
-    ctx.roundRect(cardX, cardY, cardWidth, cardHeight, 12);
-    ctx.fill();
-
-    // Add subtle inner shadow effect
-    ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
-    ctx.shadowBlur = 20;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 4;
-    ctx.fillStyle = "#1f1f1f";
-    ctx.roundRect(cardX + 2, cardY + 2, cardWidth - 4, cardHeight - 4, 10);
-    ctx.fill();
-
-    // Reset shadow
-    ctx.shadowColor = "transparent";
-    ctx.shadowBlur = 0;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-
-    // Content padding
-    const padding = 30;
-    const contentX = cardX + padding;
-    const contentY = cardY + padding;
-
-    // Draw Spotify-style header with logo area - BRIGHT YELLOW for debugging
-    ctx.fillStyle = "#ffff00";
-    ctx.font = "bold 20px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    console.log("Drawing Ambiguity at:", contentX, contentY + 20);
-    ctx.fillText("Ambiguity", contentX, contentY + 20);
-
-    // Draw term title (Spotify track style) - BRIGHT WHITE
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 36px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    console.log("Drawing term:", term, "at:", contentX, contentY + 60);
-    ctx.fillText(term, contentX, contentY + 60);
-
-    // Draw definition (Spotify artist style) - BRIGHT CYAN for debugging
-    ctx.fillStyle = "#00ffff";
-    ctx.font = "20px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    const definitionY = contentY + 100;
-    console.log("Drawing definition at:", contentX, definitionY);
-
-    // Wrap definition text
-    const definitionWidth = cardWidth - padding * 2;
-    wrapText(bestDefinition.text, contentX, definitionY, definitionWidth, 26);
-
-    // Draw source and confidence (Spotify album style) - BRIGHT MAGENTA for debugging
-    const sourceY = definitionY + 80;
-    ctx.fillStyle = "#ff00ff";
-    ctx.font = "16px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    console.log(
-      "Drawing source:",
-      bestDefinition.source,
-      "at:",
-      contentX,
-      sourceY
-    );
-    ctx.fillText(bestDefinition.source, contentX, sourceY);
-
-    // Draw confidence as a Spotify-style popularity indicator
-    const confidencePercent = Math.round(bestDefinition.weight * 100);
-    const confidenceText = `${confidencePercent}% match`;
-    const badgeWidth = ctx.measureText(confidenceText).width + 16;
-    const badgeHeight = 20;
-    const badgeX = contentX + ctx.measureText(bestDefinition.source).width + 20;
-    const badgeY = sourceY - 16;
-
-    // Spotify green badge
-    ctx.fillStyle = "#1db854";
-    ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 10);
-    ctx.fill();
-
-    ctx.fillStyle = "#ffffff";
-    ctx.font = "bold 12px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(confidenceText, badgeX + 8, badgeY + 2);
-
-    // Draw footer with candidates info (Spotify-style metadata)
-    const footerY = cardY + cardHeight - 50;
-    ctx.fillStyle = "#535353";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "top";
-    ctx.fillText(`${totalCandidates} definitions available`, contentX, footerY);
-
-    // Draw "Explore on Ambiguity" (Spotify-style link)
-    ctx.fillStyle = "#1db854";
-    ctx.font = "bold 12px Arial";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "top";
-    ctx.fillText("Explore on Ambiguity", cardX + cardWidth - padding, footerY);
-
-    // Add Spotify-style decorative elements
-    // Draw subtle accent line
-    ctx.fillStyle = "#1db854";
-    ctx.fillRect(cardX, cardY + cardHeight - 2, cardWidth, 2);
-
-    // Add some subtle dots/pattern (Spotify-style)
-    ctx.fillStyle = "rgba(29, 185, 84, 0.3)";
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      ctx.arc(cardX + cardWidth - 60 + i * 8, cardY + 20, 2, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    return canvas;
   }
 
   function showImagePreview(blob: Blob, termName: string) {
@@ -576,9 +344,11 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
 
             {/* Image Preview */}
             <div className="p-4 flex justify-center bg-gray-50">
-              <img
+              <Image
                 src={previewImage}
                 alt={`${previewTerm} share card`}
+                width={800}
+                height={400}
                 className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm"
               />
             </div>
@@ -586,7 +356,7 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
             {/* Footer */}
             <div className="flex items-center justify-between p-4 border-t bg-gray-50">
               <p className="text-sm text-gray-600">
-                Preview of your share card for "{previewTerm}"
+                Preview of your share card for &ldquo;{previewTerm}&rdquo;
               </p>
               <div className="flex gap-2">
                 <button

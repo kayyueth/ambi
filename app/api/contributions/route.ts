@@ -46,11 +46,24 @@ export async function GET(req: NextRequest) {
     }
 
     // Group by status
+    interface ContributionItem {
+      id: string;
+      text: string;
+      source: string;
+      weight: number | null;
+      userId: string;
+      status: string;
+      createdAt: string;
+      updatedAt: string;
+      term: string | null;
+      slug: string | null;
+    }
+    
     const contributions = {
-      draft: [] as any[],
-      pending: [] as any[],
-      published: [] as any[],
-      rejected: [] as any[],
+      draft: [] as ContributionItem[],
+      pending: [] as ContributionItem[],
+      published: [] as ContributionItem[],
+      rejected: [] as ContributionItem[],
     } as const;
 
     definitions?.forEach((def) => {
@@ -94,14 +107,29 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const commentItems = (comments ?? []).map((c: any) => ({
-      id: c.id as string,
-      body: c.body as string,
-      createdAt: c.created_at as string,
-      updatedAt: c.updated_at as string,
-      definitionId: c.definition_id as string,
-      term: c.definitions?.terms?.term as string | null,
-      slug: c.definitions?.terms?.slug as string | null,
+    interface CommentItem {
+      id: string;
+      body: string;
+      created_at: string;
+      updated_at: string;
+      definition_id: string;
+      definitions?: {
+        id: string;
+        terms?: {
+          term: string | null;
+          slug: string | null;
+        };
+      };
+    }
+    
+    const commentItems = (comments ?? []).map((c: CommentItem) => ({
+      id: c.id,
+      body: c.body,
+      createdAt: c.created_at,
+      updatedAt: c.updated_at,
+      definitionId: c.definition_id,
+      term: c.definitions?.terms?.term ?? null,
+      slug: c.definitions?.terms?.slug ?? null,
     }));
 
     return NextResponse.json({

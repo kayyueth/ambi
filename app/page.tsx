@@ -201,9 +201,9 @@ function FeatureCard({
   icon: string;
 }) {
   return (
-    <div className="flex items-start gap-6 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+    <div className="flex items-start gap-6 p-6 rounded-xl border">
       <div className="flex-shrink-0">
-        <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center text-xl font-bold">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-bold border">
           {number}
         </div>
       </div>

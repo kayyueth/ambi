@@ -5,9 +5,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -28,19 +26,21 @@ function ContributionsPageContent() {
     slug?: string | null;
   }
 
+  interface CommentItem {
+    id: string;
+    body: string;
+    createdAt: string;
+    updatedAt: string;
+    definitionId: string;
+    term?: string | null;
+    slug?: string | null;
+  }
+
   interface ContributionsGrouped {
     draft: ContributionItem[];
     published: ContributionItem[];
     rejected: ContributionItem[];
-    comments?: Array<{
-      id: string;
-      body: string;
-      createdAt: string;
-      updatedAt: string;
-      definitionId: string;
-      term?: string | null;
-      slug?: string | null;
-    }>;
+    comments?: CommentItem[];
   }
 
   const [data, setData] = useState<ContributionsGrouped | null>(null);
@@ -140,10 +140,10 @@ function ContributionsPageContent() {
     setReputationSeries(series);
 
     // activity: count contributions per day (all contributions, not only published)
-    const allItems = [
+    const allItems: (ContributionItem | CommentItem)[] = [
       ...(data.published || []),
       ...(data.draft || []),
-      ...(((data as any).comments as any[]) || []),
+      ...(data?.comments || []),
     ];
     const counts: Record<string, number> = {};
     for (const item of allItems) {
@@ -173,11 +173,9 @@ function ContributionsPageContent() {
       .upsert(payload, { onConflict: "id" });
     setIsProfileSaving(false);
     if (error) {
-      // eslint-disable-next-line no-alert
-      alert(error.message);
+      console.error("Profile save error:", error.message);
     } else {
-      // eslint-disable-next-line no-alert
-      alert("Profile saved");
+      console.log("Profile saved successfully");
       setIsEditingProfile(false);
     }
   }
@@ -440,15 +438,13 @@ function ContributionsPageContent() {
                 {
                   key: "drafts",
                   label: "Drafts",
-                  count: Array.isArray((data as any)?.draft)
-                    ? (data as any).draft.length
-                    : 0,
+                  count: Array.isArray(data?.draft) ? data.draft.length : 0,
                 },
                 {
                   key: "comments",
                   label: "Comments",
-                  count: Array.isArray((data as any)?.comments)
-                    ? (data as any).comments.length
+                  count: Array.isArray(data?.comments)
+                    ? data.comments.length
                     : 0,
                 },
               ] as const
@@ -456,7 +452,7 @@ function ContributionsPageContent() {
               <button
                 key={tab.key}
                 type="button"
-                onClick={() => setContribTab(tab.key as any)}
+                onClick={() => setContribTab(tab.key)}
                 className={`px-3 py-1.5 text-sm rounded ${
                   contribTab === tab.key
                     ? "bg-background text-foreground"
@@ -506,10 +502,8 @@ function ContributionsPageContent() {
 
             {contribTab === "drafts" && (
               <>
-                {data &&
-                Array.isArray((data as any).draft) &&
-                (data as any).draft.length > 0 ? (
-                  (data as any).draft.map((item: any) => (
+                {data && Array.isArray(data.draft) && data.draft.length > 0 ? (
+                  data.draft.map((item) => (
                     <li key={item.id} className="p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -543,9 +537,9 @@ function ContributionsPageContent() {
             {contribTab === "comments" && (
               <>
                 {data &&
-                Array.isArray((data as any).comments) &&
-                (data as any).comments.length > 0 ? (
-                  (data as any).comments.map((c: any) => (
+                Array.isArray(data.comments) &&
+                data.comments.length > 0 ? (
+                  data.comments.map((c) => (
                     <li key={c.id} className="p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
