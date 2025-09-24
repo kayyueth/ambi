@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -22,7 +22,6 @@ export default function ResetPasswordPage() {
   const [isValidSession, setIsValidSession] = useState(false);
 
   const router = useRouter();
-  const searchParams = useSearchParams();
   const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {

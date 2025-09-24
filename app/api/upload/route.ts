@@ -14,12 +14,6 @@ type UploadBody = {
   status?: "draft" | "published";
 };
 
-type FileUploadBody = {
-  term: string;
-  source?: string;
-  userId?: string;
-};
-
 // Supabase integration functions
 async function saveToSupabase(
   term: string,
@@ -49,7 +43,7 @@ async function saveToSupabase(
     const slug = toSlug(term);
 
     // First, ensure the term exists
-    let { data: termData, error: termError } = await supabase
+    const { data: termData, error: termError } = await supabase
       .from("terms")
       .select("id")
       .eq("slug", slug)
@@ -153,7 +147,6 @@ async function handleFileUpload(req: NextRequest) {
     const file = formData.get("file") as File;
     const term = formData.get("term") as string;
     const source = (formData.get("source") as string) || "File upload";
-    const userId = (formData.get("userId") as string) || "anonymous";
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
