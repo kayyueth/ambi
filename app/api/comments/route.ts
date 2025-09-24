@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
 
     const comments = data ?? [];
     const userIds = Array.from(
-      new Set(comments.map((c: { user_id: string }) => c.user_id).filter(Boolean))
+      new Set(
+        comments.map((c: { user_id: string }) => c.user_id).filter(Boolean)
+      )
     );
     let idToUsername: Record<string, string | null> = {};
     if (userIds.length > 0) {
@@ -36,7 +38,10 @@ export async function GET(req: NextRequest) {
         .in("id", userIds as string[]);
       if (profiles) {
         idToUsername = profiles.reduce(
-          (acc: Record<string, string | null>, p: { id: string; username: string | null }) => {
+          (
+            acc: Record<string, string | null>,
+            p: { id: string; username: string | null }
+          ) => {
             acc[p.id] = p.username ?? null;
             return acc;
           },
@@ -45,10 +50,12 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const enriched = comments.map((c: { user_id: string; [key: string]: unknown }) => ({
-      ...c,
-      username: c.user_id ? idToUsername[c.user_id] ?? null : null,
-    }));
+    const enriched = comments.map(
+      (c: { user_id: string; [key: string]: unknown }) => ({
+        ...c,
+        username: c.user_id ? idToUsername[c.user_id] ?? null : null,
+      })
+    );
 
     return NextResponse.json({ comments: enriched });
   } catch (err) {

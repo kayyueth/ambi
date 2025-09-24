@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
       term: string | null;
       slug: string | null;
     }
-    
+
     const contributions = {
       draft: [] as ContributionItem[],
       pending: [] as ContributionItem[],
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
         };
       };
     }
-    
+
     const commentItems = (comments ?? []).map((c: CommentItem) => ({
       id: c.id,
       body: c.body,

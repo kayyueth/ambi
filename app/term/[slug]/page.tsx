@@ -126,30 +126,38 @@ export default function TermDetailPage(props: PageProps) {
             {isLoading ? (
               <p className="text-muted-foreground">Loading…</p>
             ) : candidates.length > 0 ? (
-              candidates.map((c: any) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedId(c.id);
-                    setHasClickedDefinition(true);
-                  }}
-                  className={`rounded-md border p-4 text-left transition-colors ${
-                    selectedId === c.id
-                      ? "border-ring bg-ring/10"
-                      : "hover:bg-muted"
-                  }`}
-                >
-                  <p className="mb-2">{c.text}</p>
-                  <div className="text-xs text-muted-foreground flex items-center gap-2">
-                    <span>Source: {c.source}</span>
-                    <span>•</span>
-                    <span>weight {c.weight.toFixed(2)}</span>
-                    <span>•</span>
-                    <span>{c.username || "Anonymous"}</span>
-                  </div>
-                </button>
-              ))
+              candidates.map(
+                (c: {
+                  id: string;
+                  text: string;
+                  source: string;
+                  weight: number;
+                  username?: string;
+                }) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(c.id);
+                      setHasClickedDefinition(true);
+                    }}
+                    className={`rounded-md border p-4 text-left transition-colors ${
+                      selectedId === c.id
+                        ? "border-ring bg-ring/10"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <p className="mb-2">{c.text}</p>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span>Source: {c.source}</span>
+                      <span>•</span>
+                      <span>weight {c.weight.toFixed(2)}</span>
+                      <span>•</span>
+                      <span>{c.username || "Anonymous"}</span>
+                    </div>
+                  </button>
+                )
+              )
             ) : (
               <p className="text-muted-foreground">No candidates yet.</p>
             )}
@@ -180,105 +188,117 @@ export default function TermDetailPage(props: PageProps) {
                       </ul>
                     ) : comments.length > 0 ? (
                       <ul className="space-y-2">
-                        {comments.map((cm: any) => {
-                          const isOwner = user?.id === cm.user_id;
-                          const isEditing = editingId === cm.id;
-                          return (
-                            <li key={cm.id} className="rounded border p-2">
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <Textarea
-                                    value={editingText}
-                                    onChange={(e) =>
-                                      setEditingText(e.target.value)
-                                    }
-                                  />
-                                  <div className="flex items-center gap-2 justify-end">
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => {
-                                        setEditingId(null);
-                                        setEditingText("");
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      onClick={async () => {
-                                        const text = editingText.trim();
-                                        if (text.length === 0) return;
-                                        const res = await fetch(
-                                          `/api/comments/${cm.id}`,
-                                          {
-                                            method: "PATCH",
-                                            headers: {
-                                              "Content-Type":
-                                                "application/json",
-                                            },
-                                            body: JSON.stringify({
-                                              body: text,
-                                            }),
-                                          }
-                                        );
-                                        if (!res.ok) return;
-                                        const data = await res.json();
-                                        setComments((prev) =>
-                                          prev.map((c) =>
-                                            c.id === cm.id ? data.comment : c
-                                          )
-                                        );
-                                        setEditingId(null);
-                                        setEditingText("");
-                                      }}
-                                    >
-                                      Save
-                                    </Button>
+                        {comments.map(
+                          (cm: {
+                            id: string;
+                            body: string;
+                            user_id: string | null;
+                            created_at: string;
+                            username?: string;
+                          }) => {
+                            const isOwner = user?.id === cm.user_id;
+                            const isEditing = editingId === cm.id;
+                            return (
+                              <li key={cm.id} className="rounded border p-2">
+                                {isEditing ? (
+                                  <div className="space-y-2">
+                                    <Textarea
+                                      value={editingText}
+                                      onChange={(e) =>
+                                        setEditingText(e.target.value)
+                                      }
+                                    />
+                                    <div className="flex items-center gap-2 justify-end">
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => {
+                                          setEditingId(null);
+                                          setEditingText("");
+                                        }}
+                                      >
+                                        Cancel
+                                      </Button>
+                                      <Button
+                                        onClick={async () => {
+                                          const text = editingText.trim();
+                                          if (text.length === 0) return;
+                                          const res = await fetch(
+                                            `/api/comments/${cm.id}`,
+                                            {
+                                              method: "PATCH",
+                                              headers: {
+                                                "Content-Type":
+                                                  "application/json",
+                                              },
+                                              body: JSON.stringify({
+                                                body: text,
+                                              }),
+                                            }
+                                          );
+                                          if (!res.ok) return;
+                                          const data = await res.json();
+                                          setComments((prev) =>
+                                            prev.map((c) =>
+                                              c.id === cm.id ? data.comment : c
+                                            )
+                                          );
+                                          setEditingId(null);
+                                          setEditingText("");
+                                        }}
+                                      >
+                                        Save
+                                      </Button>
+                                    </div>
                                   </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <p className="text-sm">{cm.body}</p>
-                                  <div className="mt-1 flex items-center justify-between">
-                                    <p className="text-[11px] text-muted-foreground">
-                                      {cm.username || "Anonymous"} ·{" "}
-                                      {new Date(cm.created_at).toLocaleString()}
-                                    </p>
-                                    {isOwner && (
-                                      <div className="flex items-center gap-2">
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() => {
-                                            setEditingId(cm.id);
-                                            setEditingText(cm.body);
-                                          }}
-                                        >
-                                          Edit
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={async () => {
-                                            const res = await fetch(
-                                              `/api/comments/${cm.id}`,
-                                              { method: "DELETE" }
-                                            );
-                                            if (!res.ok) return;
-                                            setComments((prev) =>
-                                              prev.filter((c) => c.id !== cm.id)
-                                            );
-                                          }}
-                                        >
-                                          Delete
-                                        </Button>
-                                      </div>
-                                    )}
+                                ) : (
+                                  <div>
+                                    <p className="text-sm">{cm.body}</p>
+                                    <div className="mt-1 flex items-center justify-between">
+                                      <p className="text-[11px] text-muted-foreground">
+                                        {cm.username || "Anonymous"} ·{" "}
+                                        {new Date(
+                                          cm.created_at
+                                        ).toLocaleString()}
+                                      </p>
+                                      {isOwner && (
+                                        <div className="flex items-center gap-2">
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
+                                              setEditingId(cm.id);
+                                              setEditingText(cm.body);
+                                            }}
+                                          >
+                                            Edit
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={async () => {
+                                              const res = await fetch(
+                                                `/api/comments/${cm.id}`,
+                                                { method: "DELETE" }
+                                              );
+                                              if (!res.ok) return;
+                                              setComments((prev) =>
+                                                prev.filter(
+                                                  (c) => c.id !== cm.id
+                                                )
+                                              );
+                                            }}
+                                          >
+                                            Delete
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </div>
                                   </div>
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
+                                )}
+                              </li>
+                            );
+                          }
+                        )}
                       </ul>
                     ) : null}
 

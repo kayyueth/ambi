@@ -7,8 +7,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 export default function SearchPage() {
-  const params = useSearchParams();
-  const initial = params.get("q") ?? "";
+  const searchParams = useSearchParams();
+  const initial = searchParams.get("q") ?? "";
   const [query, setQuery] = useState(initial);
   const [results, setResults] = useState<Array<{ term: string; slug: string }>>(
     []

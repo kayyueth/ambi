@@ -48,10 +48,11 @@ export async function GET(
       created_at: string;
       updated_at: string;
     }
-    
+
     const publishedDefinitions =
-      (termData.definitions as DefinitionItem[] | undefined)?.filter((def) => def.status === "published") ||
-      [];
+      (termData.definitions as DefinitionItem[] | undefined)?.filter(
+        (def) => def.status === "published"
+      ) || [];
 
     // Lookup usernames for author ids
     const authorIds = Array.from(
@@ -65,7 +66,10 @@ export async function GET(
         .in("id", authorIds as string[]);
       if (profiles) {
         idToUsername = profiles.reduce(
-          (acc: Record<string, string | null>, p: { id: string; username: string | null }) => {
+          (
+            acc: Record<string, string | null>,
+            p: { id: string; username: string | null }
+          ) => {
             acc[p.id] = p.username ?? null;
             return acc;
           },
