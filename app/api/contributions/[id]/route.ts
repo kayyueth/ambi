@@ -83,6 +83,21 @@ export async function DELETE(
   }
 }
 
+interface ContributionWithTerms {
+  id: string;
+  text: string;
+  source: string;
+  weight: number | null;
+  status: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  terms: {
+    term: string;
+    slug: string;
+  } | null;
+}
+
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -92,7 +107,7 @@ export async function GET(
 
     const supabase = await getSupabaseServerClient();
 
-    const { data: contribution, error } = await supabase
+    const { data: contribution, error } = (await supabase
       .from("definitions")
       .select(
         `
@@ -111,7 +126,7 @@ export async function GET(
       `
       )
       .eq("id", id)
-      .single();
+      .single()) as { data: ContributionWithTerms | null; error: any };
 
     if (error || !contribution) {
       return NextResponse.json(
@@ -124,18 +139,18 @@ export async function GET(
       success: true,
       data: {
         term: {
-          term: contribution.terms?.term,
-          slug: contribution.terms?.slug,
+          term: contribution?.terms?.term || null,
+          slug: contribution?.terms?.slug || null,
         },
         candidate: {
-          id: contribution.id,
-          text: contribution.text,
-          source: contribution.source,
-          weight: contribution.weight,
-          userId: contribution.user_id,
-          status: contribution.status,
-          createdAt: contribution.created_at,
-          updatedAt: contribution.updated_at,
+          id: contribution?.id || "",
+          text: contribution?.text || "",
+          source: contribution?.source || "",
+          weight: contribution?.weight || null,
+          userId: contribution?.user_id || "",
+          status: contribution?.status || "",
+          createdAt: contribution?.created_at || "",
+          updatedAt: contribution?.updated_at || "",
         },
       },
     });
