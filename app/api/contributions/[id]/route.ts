@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { PostgrestError } from "@supabase/supabase-js";
 
 export async function PATCH(
   req: NextRequest,
@@ -126,7 +127,10 @@ export async function GET(
       `
       )
       .eq("id", id)
-      .single()) as { data: ContributionWithTerms | null; error: any };
+      .single()) as {
+      data: ContributionWithTerms | null;
+      error: PostgrestError | null;
+    };
 
     if (error || !contribution) {
       return NextResponse.json(
