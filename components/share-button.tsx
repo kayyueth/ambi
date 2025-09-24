@@ -29,6 +29,14 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
   const [previewTerm, setPreviewTerm] = useState<string>("");
   const { toast, showToast, hideToast } = useToast();
 
+  const closePreview = useCallback(() => {
+    setShowPreview(false);
+    if (previewImage) {
+      URL.revokeObjectURL(previewImage);
+      setPreviewImage(null);
+    }
+  }, [previewImage]);
+
   // Handle escape key to close preview
   useEffect(() => {
     function handleEscapeKey(event: KeyboardEvent) {
@@ -181,14 +189,6 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       showToast("Share card downloaded successfully!");
     }
   }
-
-  const closePreview = useCallback(() => {
-    setShowPreview(false);
-    if (previewImage) {
-      URL.revokeObjectURL(previewImage);
-      setPreviewImage(null);
-    }
-  }, [previewImage]);
 
   function copyLink() {
     const url = `${window.location.origin}/term/${slug}`;

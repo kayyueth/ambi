@@ -1,5 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
+import type { PostgrestError } from "@supabase/supabase-js";
+
+interface DefinitionWithTerms {
+  id: string;
+  text: string;
+  source: string;
+  weight: number | null;
+  status: string;
+  user_id: string;
+  created_at: string;
+  updated_at: string;
+  terms: {
+    term: string;
+    slug: string;
+  } | null;
+}
+
+interface CommentWithDefinitions {
+  id: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  definition_id: string;
+  definitions: {
+    id: string;
+    terms: {
+      term: string;
+      slug: string;
+    } | null;
+  } | null;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,7 +47,7 @@ export async function GET(req: NextRequest) {
     const supabase = await getSupabaseServerClient();
 
     // Fetch all definitions for the user
-    const { data: definitions, error } = await supabase
+    const { data: definitions, error } = (await supabase
       .from("definitions")
       .select(
         `
@@ -35,7 +66,10 @@ export async function GET(req: NextRequest) {
       `
       )
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })) as {
+      data: DefinitionWithTerms[] | null;
+      error: PostgrestError | null;
+    };
 
     if (error) {
       console.error("Supabase error:", error);
@@ -76,8 +110,8 @@ export async function GET(req: NextRequest) {
         status: def.status,
         createdAt: def.created_at,
         updatedAt: def.updated_at,
-        term: def.terms?.term,
-        slug: def.terms?.slug,
+        term: def.terms?.term || null,
+        slug: def.terms?.slug || null,
       };
 
       const key = def.status as keyof typeof contributions;
@@ -87,7 +121,7 @@ export async function GET(req: NextRequest) {
     });
 
     // Fetch user comments with join to definitions -> terms for slug
-    const { data: comments, error: commentsError } = await supabase
+    const { data: comments, error: commentsError } = (await supabase
       .from("comments")
       .select(
         `id, body, created_at, updated_at, definition_id,
@@ -97,7 +131,10 @@ export async function GET(req: NextRequest) {
          )`
       )
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })) as {
+      data: CommentWithDefinitions[] | null;
+      error: PostgrestError | null;
+    };
 
     if (commentsError) {
       console.error("Supabase comments error:", commentsError);
@@ -107,22 +144,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    interface CommentItem {
-      id: string;
-      body: string;
-      created_at: string;
-      updated_at: string;
-      definition_id: string;
-      definitions?: {
-        id: string;
-        terms?: {
-          term: string | null;
-          slug: string | null;
-        };
-      };
-    }
-
-    const commentItems = (comments ?? []).map((c: CommentItem) => ({
+    const commentItems = (comments ?? []).map((c) => ({
       id: c.id,
       body: c.body,
       createdAt: c.created_at,

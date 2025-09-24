@@ -424,7 +424,11 @@ export default function TermDetailPage(props: PageProps) {
                         to comment.
                       </p>
                     )}
-                    <div ref={(el) => (commentsEndRef.current = el)} />
+                    <div
+                      ref={(el) => {
+                        commentsEndRef.current = el;
+                      }}
+                    />
                   </div>
                 </div>
               </aside>

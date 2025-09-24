@@ -30,12 +30,12 @@ async function testSupabaseIntegration() {
   try {
     // Test 1: Check if tables exist
     console.log("1️⃣ Testing table existence...");
-    const { data: terms, error: termsError } = await supabase
+    const { error: termsError } = await supabase
       .from("terms")
       .select("count")
       .limit(1);
 
-    const { data: definitions, error: defError } = await supabase
+    const { error: defError } = await supabase
       .from("definitions")
       .select("count")
       .limit(1);

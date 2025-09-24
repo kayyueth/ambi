@@ -11,10 +11,10 @@ import * as fs from "node:fs";
 try {
   const envLocal = path.join(process.cwd(), ".env.local");
   if (fs.existsSync(envLocal)) {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require("dotenv").config({ path: envLocal });
   } else {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     require("dotenv").config();
   }
 } catch {

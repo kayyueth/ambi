@@ -33,7 +33,7 @@ export function AuthButton() {
 
   const initials = (user.user_metadata?.name || user.email || "U")
     .split(" ")
-    .map((p) => p[0]?.toUpperCase())
+    .map((p: string) => p[0]?.toUpperCase())
     .slice(0, 2)
     .join("");
 
