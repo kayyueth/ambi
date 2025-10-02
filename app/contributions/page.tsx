@@ -52,17 +52,18 @@ function ContributionsPageContent() {
   // profile form state
   interface ProfileFormState {
     username: string;
-    subject: string;
+    subject: string[];
     school: string;
   }
   const [profileForm, setProfileForm] = useState<ProfileFormState>({
     username: "",
-    subject: "",
+    subject: [],
     school: "",
   });
   const [isProfileFetching, setIsProfileFetching] = useState(true);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [subjectInput, setSubjectInput] = useState("");
   const [reputation, setReputation] = useState(0);
   const [reputationSeries, setReputationSeries] = useState<
     Array<{ date: string; value: number }>
@@ -118,7 +119,7 @@ function ContributionsPageContent() {
       if (!cancelled && !error && data) {
         setProfileForm({
           username: data.username ?? "",
-          subject: data.subject ?? "",
+          subject: Array.isArray(data.subject) ? data.subject : [],
           school: data.school ?? "",
         });
       }
@@ -174,6 +175,31 @@ function ContributionsPageContent() {
     value: ProfileFormState[K]
   ) {
     setProfileForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function addSubject() {
+    const trimmed = subjectInput.trim();
+    if (trimmed && !profileForm.subject.includes(trimmed)) {
+      setProfileForm((prev) => ({
+        ...prev,
+        subject: [...prev.subject, trimmed],
+      }));
+      setSubjectInput("");
+    }
+  }
+
+  function removeSubject(subjectToRemove: string) {
+    setProfileForm((prev) => ({
+      ...prev,
+      subject: prev.subject.filter((s) => s !== subjectToRemove),
+    }));
+  }
+
+  function handleSubjectInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      addSubject();
+    }
   }
 
   async function onProfileSubmit(e: React.FormEvent) {
@@ -294,9 +320,20 @@ function ContributionsPageContent() {
               </div>
               <div className="w-full">
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <Badge variant="secondary">
-                    {profileForm.subject || "No subject"}
-                  </Badge>
+                  {profileForm.subject.length > 0 ? (
+                    profileForm.subject.map((subj) => (
+                      <Badge key={subj} variant="secondary">
+                        {subj}
+                      </Badge>
+                    ))
+                  ) : (
+                    <Badge
+                      variant="secondary"
+                      className="text-muted-foreground"
+                    >
+                      No subjects
+                    </Badge>
+                  )}
                   <Badge variant="outline">
                     {profileForm.school || "No school"}
                   </Badge>
@@ -335,15 +372,55 @@ function ContributionsPageContent() {
               </div>
               <div className="space-y-2">
                 <label htmlFor="subject" className="text-sm font-medium">
-                  Subject
+                  Subjects
                 </label>
-                <Input
-                  id="subject"
-                  value={profileForm.subject}
-                  onChange={(e) => onProfileChange("subject", e.target.value)}
-                  placeholder="e.g. Physics"
-                  disabled={isProfileFetching}
-                />
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {profileForm.subject.map((subj) => (
+                    <Badge
+                      key={subj}
+                      variant="secondary"
+                      className="flex items-center gap-1 pr-1"
+                    >
+                      {subj}
+                      <button
+                        type="button"
+                        onClick={() => removeSubject(subj)}
+                        className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
+                        aria-label={`Remove ${subj}`}
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 16 16"
+                          fill="currentColor"
+                          className="w-3 h-3"
+                        >
+                          <path d="M5.28 4.22a.75.75 0 0 0-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 1 0 1.06 1.06L8 9.06l2.72 2.72a.75.75 0 1 0 1.06-1.06L9.06 8l2.72-2.72a.75.75 0 0 0-1.06-1.06L8 6.94 5.28 4.22Z" />
+                        </svg>
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    id="subject"
+                    value={subjectInput}
+                    onChange={(e) => setSubjectInput(e.target.value)}
+                    onKeyDown={handleSubjectInputKeyDown}
+                    placeholder="e.g. Physics"
+                    disabled={isProfileFetching}
+                  />
+                  <button
+                    type="button"
+                    onClick={addSubject}
+                    disabled={isProfileFetching || !subjectInput.trim()}
+                    className="px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Press Enter or click Add to add a subject tag
+                </p>
               </div>
               <div className="space-y-2">
                 <label htmlFor="school" className="text-sm font-medium">

@@ -48,7 +48,7 @@ alter table public.comments enable row level security;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   username text unique,
-  subject text,
+  subject text[] default ARRAY[]::text[],
   school text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
