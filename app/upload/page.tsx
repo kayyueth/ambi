@@ -28,10 +28,38 @@ function UploadPageContent() {
   >();
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [showValidationWarning, setShowValidationWarning] = useState(false);
+  const [validationMessage, setValidationMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  function validateSubmission() {
+    const issues = [];
+
+    if (!term.trim()) {
+      issues.push("Term name is required");
+    }
+
+    if (definition.trim().length < 10) {
+      issues.push("Definition must be at least 10 characters long");
+    }
+
+    return issues;
+  }
+
+  function showValidationPopup(issues: string[]) {
+    setValidationMessage(issues.join(". ") + ".");
+    setShowValidationWarning(true);
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    const validationIssues = validateSubmission();
+    if (validationIssues.length > 0) {
+      showValidationPopup(validationIssues);
+      return;
+    }
+
     setError(null);
     setSuccess(null);
     setIsSubmitting(true);
@@ -56,6 +84,12 @@ function UploadPageContent() {
   }
 
   async function onSaveDraft() {
+    const validationIssues = validateSubmission();
+    if (validationIssues.length > 0) {
+      showValidationPopup(validationIssues);
+      return;
+    }
+
     setError(null);
     setSuccess(null);
     setIsSubmitting(true);
@@ -87,11 +121,7 @@ function UploadPageContent() {
       return;
     }
 
-    if (!term.trim()) {
-      console.log("UploadPage: no term entered");
-      setError("Please enter a term before uploading a file");
-      return;
-    }
+    // Remove term requirement for file upload - users can upload first, then fill term
 
     setError(null);
     setSuccess(null);
@@ -101,7 +131,7 @@ function UploadPageContent() {
       console.log("UploadPage: creating FormData and making API call");
       const formData = new FormData();
       formData.append("file", fileToUpload);
-      formData.append("term", term.trim());
+      formData.append("term", term.trim() || "Untitled");
       formData.append("source", source || "File upload");
 
       const res = await fetch("/api/upload", {
@@ -128,7 +158,7 @@ function UploadPageContent() {
       // Show preview dialog instead of directly submitting
       setShowTextPreview(true);
       setSuccess(
-        `File processed successfully! Please review and edit the extracted text, then click Submit.`
+        `File processed successfully! Please review and edit the extracted text, then fill in the term name and click Submit.`
       );
     } catch (err) {
       setError((err as Error).message);
@@ -248,7 +278,7 @@ function UploadPageContent() {
                   id="term"
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
-                  placeholder="Enter the term you want to define"
+                  placeholder="Enter the term name (can be filled after uploading a file)"
                   aria-invalid={!term}
                   className="w-full"
                 />
@@ -328,12 +358,7 @@ function UploadPageContent() {
               <div className="flex gap-3 pt-4">
                 <Button
                   type="submit"
-                  disabled={
-                    isSubmitting ||
-                    isUploading ||
-                    !term ||
-                    definition.trim().length < 10
-                  }
+                  disabled={isSubmitting || isUploading}
                   className="flex-1"
                 >
                   {isSubmitting ? "Submitting…" : "Submit Term"}
@@ -341,7 +366,7 @@ function UploadPageContent() {
                 <Button
                   type="button"
                   variant="outline"
-                  disabled={isSubmitting || isUploading || !term}
+                  disabled={isSubmitting || isUploading}
                   onClick={onSaveDraft}
                 >
                   {isSubmitting ? "Saving…" : "Save Draft"}
@@ -362,6 +387,43 @@ function UploadPageContent() {
         confidence={extractionConfidence}
         fileName={uploadedFileName}
       />
+
+      {/* Validation Warning Dialog */}
+      {showValidationWarning && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
+                <svg
+                  className="w-5 h-5 text-yellow-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Missing Required Information
+              </h3>
+            </div>
+            <p className="text-gray-700 mb-6">{validationMessage}</p>
+            <div className="flex justify-end">
+              <Button
+                onClick={() => setShowValidationWarning(false)}
+                className="px-6"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
