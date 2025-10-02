@@ -70,6 +70,9 @@ export function EditContributionDialog({
     if (text.trim().length < 10) {
       validationIssues.push("Definition must be at least 10 characters long");
     }
+    if (!source.trim()) {
+      validationIssues.push("Source is required");
+    }
 
     if (validationIssues.length > 0) {
       setError(validationIssues.join(". ") + ".");
@@ -133,7 +136,7 @@ export function EditContributionDialog({
 
           <div className="space-y-2">
             <label htmlFor="source" className="text-sm font-medium">
-              Source (optional)
+              Source *
             </label>
             <Input
               id="source"
@@ -178,7 +181,12 @@ export function EditContributionDialog({
           <Button
             type="button"
             onClick={handleSave}
-            disabled={isSaving || !text.trim() || text.trim().length < 10}
+            disabled={
+              isSaving ||
+              !text.trim() ||
+              text.trim().length < 10 ||
+              !source.trim()
+            }
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>

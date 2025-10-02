@@ -43,6 +43,10 @@ function UploadPageContent() {
       issues.push("Definition must be at least 10 characters long");
     }
 
+    if (!source.trim()) {
+      issues.push("Source is required");
+    }
+
     return issues;
   }
 
@@ -144,7 +148,7 @@ function UploadPageContent() {
       const formData = new FormData();
       formData.append("file", fileToUpload);
       formData.append("term", term.trim() || "Untitled");
-      formData.append("source", source || "File upload");
+      formData.append("source", source.trim() || "File upload");
 
       const res = await fetch("/api/upload", {
         method: "POST",
@@ -170,7 +174,7 @@ function UploadPageContent() {
       // Show preview dialog instead of directly submitting
       setShowTextPreview(true);
       setSuccess(
-        `File processed successfully! Please review and edit the extracted text, then fill in the term name and click Submit.`
+        `File processed successfully! Please review and edit the extracted text, then fill in the term name and source (required), and click Submit.`
       );
     } catch (err) {
       setError((err as Error).message);
@@ -314,7 +318,7 @@ function UploadPageContent() {
 
               <div className="space-y-2">
                 <label htmlFor="source" className="text-sm font-medium">
-                  Source (optional)
+                  Source *
                 </label>
                 <Input
                   id="source"
@@ -323,6 +327,11 @@ function UploadPageContent() {
                   placeholder="Where did this definition come from?"
                   className="w-full"
                 />
+                {uploadedFile && (
+                  <p className="text-xs text-muted-foreground">
+                    Source is required before submitting
+                  </p>
+                )}
               </div>
 
               {error && (

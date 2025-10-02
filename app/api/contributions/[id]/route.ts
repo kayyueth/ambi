@@ -18,6 +18,13 @@ export async function PUT(
       );
     }
 
+    if (!source || source.trim().length === 0) {
+      return NextResponse.json(
+        { error: "Source is required" },
+        { status: 400 }
+      );
+    }
+
     const supabase = await getSupabaseServerClient();
 
     // First, check if the contribution exists and get the user_id
@@ -60,7 +67,7 @@ export async function PUT(
       .from("definitions")
       .update({
         text: text.trim(),
-        source: source?.trim() || null,
+        source: source.trim(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", id);

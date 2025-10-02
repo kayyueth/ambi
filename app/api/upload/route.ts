@@ -9,7 +9,7 @@ import { getSupabaseServerClient } from "@/lib/supabase/server";
 type UploadBody = {
   term: string;
   definition: string;
-  source?: string;
+  source: string;
   userId?: string;
   status?: "draft" | "published";
 };
@@ -156,6 +156,8 @@ async function handleFileUpload(req: NextRequest) {
       return NextResponse.json({ error: "Term is required" }, { status: 400 });
     }
 
+    // Source is optional for file uploads - will use default if not provided
+
     console.log("/api/upload file upload", {
       fileName: file.name,
       fileSize: file.size,
@@ -182,7 +184,7 @@ async function handleFileUpload(req: NextRequest) {
     const result_data = await saveToSupabase(
       term.trim(),
       result.text,
-      `${source} (${result.method})`
+      source.trim()
     );
 
     if (!result_data.success) {
@@ -212,7 +214,7 @@ async function handleFileUpload(req: NextRequest) {
 async function handleTextUpload(body: Partial<UploadBody>) {
   const term = (body.term ?? "").trim();
   const definition = (body.definition ?? "").trim();
-  const source = (body.source ?? "User submission").trim();
+  const source = (body.source ?? "").trim();
   const userId = body.userId || "anonymous";
   const status: "draft" | "published" =
     body.status === "draft" ? "draft" : "published";
@@ -227,6 +229,11 @@ async function handleTextUpload(body: Partial<UploadBody>) {
   if (!term) {
     return NextResponse.json({ error: "Term is required" }, { status: 400 });
   }
+
+  if (!source) {
+    return NextResponse.json({ error: "Source is required" }, { status: 400 });
+  }
+
   if (status !== "draft" && (!definition || definition.length < 10)) {
     return NextResponse.json(
       { error: "Definition must be at least 10 characters" },
