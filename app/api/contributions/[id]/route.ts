@@ -2,6 +2,109 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 import type { PostgrestError } from "@supabase/supabase-js";
 
+export async function PUT(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const body = await req.json();
+    const { text, source, term } = body;
+
+    if (!text || text.trim().length < 10) {
+      return NextResponse.json(
+        { error: "Text is required and must be at least 10 characters long" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = await getSupabaseServerClient();
+
+    // First, check if the contribution exists and get the user_id
+    const { data: existingContribution, error: fetchError } = await supabase
+      .from("definitions")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existingContribution) {
+      return NextResponse.json(
+        { error: "Contribution not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get the current user from the session
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Check if the user owns this contribution
+    if (existingContribution.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "You can only edit your own contributions" },
+        { status: 403 }
+      );
+    }
+
+    // Update the contribution
+    const { error } = await supabase
+      .from("definitions")
+      .update({
+        text: text.trim(),
+        source: source?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase update error:", error);
+      return NextResponse.json(
+        { error: "Failed to update contribution" },
+        { status: 500 }
+      );
+    }
+
+    // If a new term is provided, update the term as well
+    if (term && term.trim()) {
+      const { data: definitionData } = await supabase
+        .from("definitions")
+        .select("term_id")
+        .eq("id", id)
+        .single();
+
+      if (definitionData?.term_id) {
+        await supabase
+          .from("terms")
+          .update({
+            term: term.trim(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", definitionData.term_id);
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Contribution updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating contribution:", error);
+    return NextResponse.json(
+      { error: "Failed to update contribution" },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -61,13 +164,49 @@ export async function DELETE(
 
     const supabase = await getSupabaseServerClient();
 
+    // First, check if the contribution exists and get the user_id
+    const { data: existingContribution, error: fetchError } = await supabase
+      .from("definitions")
+      .select("user_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existingContribution) {
+      return NextResponse.json(
+        { error: "Contribution not found" },
+        { status: 404 }
+      );
+    }
+
+    // Get the current user from the session
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    // Check if the user owns this contribution
+    if (existingContribution.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "You can only delete your own contributions" },
+        { status: 403 }
+      );
+    }
+
+    // Delete the contribution
     const { error } = await supabase.from("definitions").delete().eq("id", id);
 
     if (error) {
       console.error("Supabase delete error:", error);
       return NextResponse.json(
-        { error: "Contribution not found or delete failed" },
-        { status: 404 }
+        { error: "Failed to delete contribution" },
+        { status: 500 }
       );
     }
 

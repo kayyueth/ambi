@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EditContributionDialog } from "@/components/edit-contribution-dialog";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 
 function ContributionsPageContent() {
   const { user } = useAuth();
@@ -69,6 +71,16 @@ function ContributionsPageContent() {
   const [contribTab, setContribTab] = useState<
     "published" | "drafts" | "comments"
   >("published");
+
+  // Edit dialog state
+  const [editingContribution, setEditingContribution] =
+    useState<ContributionItem | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  // Delete dialog state
+  const [deletingContribution, setDeletingContribution] =
+    useState<ContributionItem | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -177,6 +189,67 @@ function ContributionsPageContent() {
     } else {
       console.log("Profile saved successfully");
       setIsEditingProfile(false);
+    }
+  }
+
+  function handleEditContribution(contribution: ContributionItem) {
+    setEditingContribution(contribution);
+    setIsEditDialogOpen(true);
+  }
+
+  async function handleSaveContribution(
+    id: string,
+    data: { text: string; source: string; term: string }
+  ) {
+    const res = await fetch(`/api/contributions/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result?.error ?? "Failed to update contribution");
+    }
+
+    // Reload the contributions data
+    if (user?.id) {
+      const res = await fetch(
+        `/api/contributions?userId=${encodeURIComponent(user.id)}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setData(json.data as ContributionsGrouped);
+      }
+    }
+  }
+
+  function handleDeleteContribution(contribution: ContributionItem) {
+    setDeletingContribution(contribution);
+    setIsDeleteDialogOpen(true);
+  }
+
+  async function handleConfirmDelete() {
+    if (!deletingContribution) return;
+
+    const res = await fetch(`/api/contributions/${deletingContribution.id}`, {
+      method: "DELETE",
+    });
+
+    const result = await res.json();
+    if (!res.ok) {
+      throw new Error(result?.error ?? "Failed to delete contribution");
+    }
+
+    // Reload the contributions data
+    if (user?.id) {
+      const res = await fetch(
+        `/api/contributions?userId=${encodeURIComponent(user.id)}`
+      );
+      if (res.ok) {
+        const json = await res.json();
+        setData(json.data as ContributionsGrouped);
+      }
     }
   }
 
@@ -472,7 +545,7 @@ function ContributionsPageContent() {
                   data.published.map((item) => (
                     <li key={item.id} className="p-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="line-clamp-2 text-sm">{item.text}</p>
                           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                             {item.slug && (
@@ -488,6 +561,23 @@ function ContributionsPageContent() {
                               {new Date(item.createdAt).toLocaleDateString()}
                             </span>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditContribution(item)}
+                            className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
+                            title="Edit contribution"
+                          >
+                            Edit
+                          </button>
+                          <span className="text-muted-foreground">•</span>
+                          <button
+                            onClick={() => handleDeleteContribution(item)}
+                            className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
+                            title="Delete contribution"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     </li>
@@ -506,7 +596,7 @@ function ContributionsPageContent() {
                   data.draft.map((item) => (
                     <li key={item.id} className="p-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <p className="line-clamp-2 text-sm">{item.text}</p>
                           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                             {item.slug && (
@@ -522,6 +612,23 @@ function ContributionsPageContent() {
                               {new Date(item.createdAt).toLocaleDateString()}
                             </span>
                           </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditContribution(item)}
+                            className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
+                            title="Edit contribution"
+                          >
+                            Edit
+                          </button>
+                          <span className="text-muted-foreground">•</span>
+                          <button
+                            onClick={() => handleDeleteContribution(item)}
+                            className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
+                            title="Delete contribution"
+                          >
+                            Delete
+                          </button>
                         </div>
                       </div>
                     </li>
@@ -572,6 +679,27 @@ function ContributionsPageContent() {
           </ul>
         </div>
       )}
+
+      <EditContributionDialog
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        contribution={editingContribution}
+        onSave={handleSaveContribution}
+      />
+
+      <DeleteConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Contribution"
+        description="Are you sure you want to delete this contribution? This will permanently remove it from the platform."
+        itemName={
+          deletingContribution?.text?.slice(0, 100) +
+          (deletingContribution?.text && deletingContribution.text.length > 100
+            ? "..."
+            : "")
+        }
+      />
     </div>
   );
 }
