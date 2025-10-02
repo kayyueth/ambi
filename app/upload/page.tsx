@@ -75,7 +75,13 @@ function UploadPageContent() {
       }
       setDefinition("");
       setSource("");
-      router.push(`/term/${data.slug}`);
+      setTerm(""); // Clear the term field as well
+      setUploadedFile(null);
+      setUploadedFileName("");
+      setExtractedText("");
+      setSuccess(
+        `Term "${data.term}" uploaded successfully! You can now add another term.`
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -105,7 +111,13 @@ function UploadPageContent() {
       }
       setDefinition("");
       setSource("");
-      router.push(`/contributions`);
+      setTerm(""); // Clear the term field as well
+      setUploadedFile(null);
+      setUploadedFileName("");
+      setExtractedText("");
+      setSuccess(
+        `Draft "${data.term}" saved successfully! You can now add another term.`
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
