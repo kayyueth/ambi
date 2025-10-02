@@ -17,6 +17,7 @@ interface DeleteConfirmationDialogProps {
   title: string;
   description: string;
   itemName?: string;
+  isDeleting?: boolean;
 }
 
 export function DeleteConfirmationDialog({
@@ -26,11 +27,13 @@ export function DeleteConfirmationDialog({
   title,
   description,
   itemName,
+  isDeleting: externalIsDeleting = false,
 }: DeleteConfirmationDialogProps) {
   const [isDeleting, setIsDeleting] = useState(false);
+  const isActuallyDeleting = externalIsDeleting || isDeleting;
 
   function handleClose() {
-    if (!isDeleting) {
+    if (!isActuallyDeleting) {
       onClose();
     }
   }
@@ -89,7 +92,7 @@ export function DeleteConfirmationDialog({
             type="button"
             variant="outline"
             onClick={handleClose}
-            disabled={isDeleting}
+            disabled={isActuallyDeleting}
           >
             Cancel
           </Button>
@@ -97,9 +100,9 @@ export function DeleteConfirmationDialog({
             type="button"
             variant="destructive"
             onClick={handleConfirm}
-            disabled={isDeleting}
+            disabled={isActuallyDeleting}
           >
-            {isDeleting ? "Deleting..." : "Delete"}
+            {isActuallyDeleting ? "Deleting..." : "Delete"}
           </Button>
         </DialogFooter>
       </DialogContent>

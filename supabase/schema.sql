@@ -95,11 +95,11 @@ create policy defs_update_own_unpublished on public.definitions
   using (auth.uid() = user_id and status != 'published')
   with check (auth.uid() = user_id and status != 'published');
 
-drop policy if exists defs_delete_own_unpublished on public.definitions;
-create policy defs_delete_own_unpublished on public.definitions
+drop policy if exists defs_delete_own on public.definitions;
+create policy defs_delete_own on public.definitions
   for delete
   to authenticated
-  using (auth.uid() = user_id and status != 'published');
+  using (auth.uid() = user_id);
 
 -- COMMENTS
 drop policy if exists comments_read_all on public.comments;

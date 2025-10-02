@@ -174,7 +174,7 @@ function UploadPageContent() {
       // Show preview dialog instead of directly submitting
       setShowTextPreview(true);
       setSuccess(
-        `File processed successfully! Please review and edit the extracted text, then fill in the term name and source (required), and click Submit.`
+        `File processed successfully! Please review and edit the extracted text, then fill in the term name and source (required), and click Submit to save your contribution.`
       );
     } catch (err) {
       setError((err as Error).message);
@@ -272,8 +272,9 @@ function UploadPageContent() {
                     File Ready for Processing
                   </p>
                   <p className="text-sm text-blue-700 mt-1">
-                    Your file has been uploaded successfully. Click "Extract
-                    Text" to process it, or continue with manual entry.
+                    Your file has been uploaded and processed successfully.
+                    Review the extracted text below, fill in the term name and
+                    source, then click Submit to save your contribution.
                   </p>
                 </div>
               </div>

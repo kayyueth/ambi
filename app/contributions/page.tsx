@@ -81,6 +81,7 @@ function ContributionsPageContent() {
   const [deletingContribution, setDeletingContribution] =
     useState<ContributionItem | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -232,24 +233,39 @@ function ContributionsPageContent() {
   async function handleConfirmDelete() {
     if (!deletingContribution) return;
 
-    const res = await fetch(`/api/contributions/${deletingContribution.id}`, {
-      method: "DELETE",
-    });
+    setIsDeleting(true);
+    setHasError(null);
 
-    const result = await res.json();
-    if (!res.ok) {
-      throw new Error(result?.error ?? "Failed to delete contribution");
-    }
+    try {
+      const res = await fetch(`/api/contributions/${deletingContribution.id}`, {
+        method: "DELETE",
+      });
 
-    // Reload the contributions data
-    if (user?.id) {
-      const res = await fetch(
-        `/api/contributions?userId=${encodeURIComponent(user.id)}`
-      );
-      if (res.ok) {
-        const json = await res.json();
-        setData(json.data as ContributionsGrouped);
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result?.error ?? "Failed to delete contribution");
       }
+
+      // Close the delete dialog
+      setIsDeleteDialogOpen(false);
+      setDeletingContribution(null);
+
+      // Reload the contributions data
+      if (user?.id) {
+        const res = await fetch(
+          `/api/contributions?userId=${encodeURIComponent(user.id)}`
+        );
+        if (res.ok) {
+          const json = await res.json();
+          setData(json.data as ContributionsGrouped);
+        }
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      setHasError((error as Error).message);
+      // Keep the dialog open so user can try again
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -689,7 +705,7 @@ function ContributionsPageContent() {
 
       <DeleteConfirmationDialog
         isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
+        onClose={() => !isDeleting && setIsDeleteDialogOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Contribution"
         description="Are you sure you want to delete this contribution? This will permanently remove it from the platform."
@@ -699,6 +715,7 @@ function ContributionsPageContent() {
             ? "..."
             : "")
         }
+        isDeleting={isDeleting}
       />
     </div>
   );

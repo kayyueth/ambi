@@ -180,24 +180,10 @@ async function handleFileUpload(req: NextRequest) {
       );
     }
 
-    // Persist to Supabase
-    const result_data = await saveToSupabase(
-      term.trim(),
-      result.text,
-      source.trim()
-    );
-
-    if (!result_data.success) {
-      return NextResponse.json(
-        { error: result_data.error || "Failed to save contribution" },
-        { status: 500 }
-      );
-    }
-
+    // Return processed text without saving to database
+    // The user will need to click Submit to actually save the contribution
     return NextResponse.json({
       ok: true,
-      slug: result_data.slug,
-      id: result_data.id,
       extractedText: result.text,
       method: result.method,
       confidence: result.confidence,
