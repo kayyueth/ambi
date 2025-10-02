@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TextPreviewDialog } from "@/components/text-preview-dialog";
 import { ProtectedRoute } from "@/components/auth/protected-route";
+import { DragDropUpload } from "@/components/drag-drop-upload";
 
 function UploadPageContent() {
   const router = useRouter();
@@ -26,6 +27,7 @@ function UploadPageContent() {
     number | undefined
   >();
   const [uploadedFileName, setUploadedFileName] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -77,11 +79,16 @@ function UploadPageContent() {
     }
   }
 
-  async function handleFileUpload() {
-    if (!fileInputRef.current?.files?.[0]) return;
+  async function handleFileUpload(file?: File) {
+    console.log("UploadPage: handleFileUpload called with file:", file?.name);
+    const fileToUpload = file || fileInputRef.current?.files?.[0];
+    if (!fileToUpload) {
+      console.log("UploadPage: no file to upload");
+      return;
+    }
 
-    const file = fileInputRef.current.files[0];
     if (!term.trim()) {
+      console.log("UploadPage: no term entered");
       setError("Please enter a term before uploading a file");
       return;
     }
@@ -91,8 +98,9 @@ function UploadPageContent() {
     setIsUploading(true);
 
     try {
+      console.log("UploadPage: creating FormData and making API call");
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", fileToUpload);
       formData.append("term", term.trim());
       formData.append("source", source || "File upload");
 
@@ -101,7 +109,10 @@ function UploadPageContent() {
         body: formData,
       });
 
+      console.log("UploadPage: API response status:", res.status);
+
       const data = await res.json();
+      console.log("UploadPage: API response data:", data);
       if (!res.ok) {
         throw new Error(data?.error ?? "File upload failed");
       }
@@ -110,8 +121,10 @@ function UploadPageContent() {
       setExtractedText(data.extractedText || "");
       setExtractionMethod(data.method || "pdf-text");
       setExtractionConfidence(data.confidence);
-      setUploadedFileName(file.name);
+      setUploadedFileName(fileToUpload.name);
+      setUploadedFile(fileToUpload);
 
+      console.log("UploadPage: Setting showTextPreview to true");
       // Show preview dialog instead of directly submitting
       setShowTextPreview(true);
       setSuccess(
@@ -138,70 +151,206 @@ function UploadPageContent() {
     setShowTextPreview(false);
   }
 
+  function handleRemoveFile() {
+    setUploadedFile(null);
+    setUploadedFileName("");
+    setExtractedText("");
+    setDefinition("");
+    setError(null);
+    setSuccess(null);
+  }
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Upload</h1>
-      <form onSubmit={onSubmit} className="space-y-3 max-w-xl">
-        <Input
-          value={term}
-          onChange={(e) => setTerm(e.target.value)}
-          placeholder="Term"
-          aria-invalid={!term}
-        />
-        <textarea
-          value={definition}
-          onChange={(e) => setDefinition(e.target.value)}
-          placeholder="Definition"
-          className="w-full min-h-40 rounded-md border px-3 py-2 text-sm"
-        />
-        <p className="text-xs text-muted-foreground">Min 10 characters.</p>
-        <Input
-          value={source}
-          onChange={(e) => setSource(e.target.value)}
-          placeholder="Source (optional)"
-        />
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-green-600">{success}</p>}
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-bold">Add New Term</h1>
+        <p className="text-muted-foreground">
+          Upload a PDF or image to extract text, or manually enter your term
+          definition
+        </p>
+      </div>
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.tiff"
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left Column - Upload Area */}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Upload Document</h2>
+            <DragDropUpload
+              onFileSelect={handleFileUpload}
+              disabled={isSubmitting || isUploading}
+              acceptedTypes={[
+                ".pdf",
+                ".jpg",
+                ".jpeg",
+                ".png",
+                ".gif",
+                ".bmp",
+                ".tiff",
+              ]}
+              maxSizeInMB={10}
+              isUploading={isUploading}
+              uploadedFile={uploadedFile}
+              onRemoveFile={handleRemoveFile}
+            />
+          </div>
 
-        <div className="flex gap-2">
-          <Button
-            type="submit"
-            disabled={
-              isSubmitting ||
-              isUploading ||
-              !term ||
-              definition.trim().length < 10
-            }
-          >
-            {isSubmitting ? "Submitting…" : "Submit"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={isSubmitting || isUploading || !term}
-            onClick={onSaveDraft}
-          >
-            {isSubmitting ? "Saving…" : "Save Draft"}
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={handleFileSelect}
-            disabled={isSubmitting || isUploading || !term}
-          >
-            {isUploading ? "Processing…" : "Upload PDF/Image"}
-          </Button>
+          {/* Hidden file input for fallback */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.bmp,.tiff"
+            onChange={() => handleFileUpload()}
+            className="hidden"
+          />
+
+          {uploadedFile && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start space-x-3">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-blue-600"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-blue-900">
+                    File Ready for Processing
+                  </p>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Your file has been uploaded successfully. Click "Extract
+                    Text" to process it, or continue with manual entry.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </form>
+
+        {/* Right Column - Form */}
+        <div className="space-y-6">
+          <div className="space-y-4">
+            <h2 className="text-xl font-semibold">Term Details</h2>
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <label htmlFor="term" className="text-sm font-medium">
+                  Term *
+                </label>
+                <Input
+                  id="term"
+                  value={term}
+                  onChange={(e) => setTerm(e.target.value)}
+                  placeholder="Enter the term you want to define"
+                  aria-invalid={!term}
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="definition" className="text-sm font-medium">
+                  Definition *
+                </label>
+                <textarea
+                  id="definition"
+                  value={definition}
+                  onChange={(e) => setDefinition(e.target.value)}
+                  placeholder="Enter the definition or upload a file to extract text automatically"
+                  className="w-full min-h-32 rounded-md border px-3 py-2 text-sm resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum 10 characters required
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="source" className="text-sm font-medium">
+                  Source (optional)
+                </label>
+                <Input
+                  id="source"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  placeholder="Where did this definition come from?"
+                  className="w-full"
+                />
+              </div>
+
+              {error && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="w-4 h-4 text-red-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p className="text-sm text-red-700">{error}</p>
+                  </div>
+                </div>
+              )}
+
+              {success && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center space-x-2">
+                    <svg
+                      className="w-4 h-4 text-green-500 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <p className="text-sm text-green-700">{success}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <Button
+                  type="submit"
+                  disabled={
+                    isSubmitting ||
+                    isUploading ||
+                    !term ||
+                    definition.trim().length < 10
+                  }
+                  className="flex-1"
+                >
+                  {isSubmitting ? "Submitting…" : "Submit Term"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={isSubmitting || isUploading || !term}
+                  onClick={onSaveDraft}
+                >
+                  {isSubmitting ? "Saving…" : "Save Draft"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
 
       {/* Text Preview Dialog */}
       <TextPreviewDialog
