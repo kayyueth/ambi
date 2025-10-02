@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -25,6 +24,10 @@ interface ShareButtonProps {
 export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showDefinitionSelector, setShowDefinitionSelector] = useState(false);
+  const [selectedDefinitionIds, setSelectedDefinitionIds] = useState<string[]>(
+    []
+  );
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTerm, setPreviewTerm] = useState<string>("");
   const { toast, showToast, hideToast } = useToast();
@@ -37,15 +40,19 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
     }
   }, [previewImage]);
 
-  // Handle escape key to close preview
+  // Handle escape key to close preview or selector
   useEffect(() => {
     function handleEscapeKey(event: KeyboardEvent) {
-      if (event.key === "Escape" && showPreview) {
-        closePreview();
+      if (event.key === "Escape") {
+        if (showPreview) {
+          closePreview();
+        } else if (showDefinitionSelector) {
+          closeDefinitionSelector();
+        }
       }
     }
 
-    if (showPreview) {
+    if (showPreview || showDefinitionSelector) {
       document.addEventListener("keydown", handleEscapeKey);
       document.body.style.overflow = "hidden"; // Prevent background scrolling
     }
@@ -54,14 +61,48 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       document.removeEventListener("keydown", handleEscapeKey);
       document.body.style.overflow = "unset";
     };
-  }, [showPreview, closePreview]);
+  }, [showPreview, showDefinitionSelector, closePreview]);
+
+  function openDefinitionSelector() {
+    setShowDefinitionSelector(true);
+    // Pre-select the highest weighted definition
+    const bestCandidate = candidates.reduce((best, current) =>
+      current.weight > best.weight ? current : best
+    );
+    setSelectedDefinitionIds([bestCandidate.id]);
+  }
+
+  function closeDefinitionSelector() {
+    setShowDefinitionSelector(false);
+    setSelectedDefinitionIds([]);
+  }
+
+  function toggleDefinitionSelection(id: string) {
+    setSelectedDefinitionIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((selectedId) => selectedId !== id)
+        : [...prev, id]
+    );
+  }
+
+  function selectAllDefinitions() {
+    setSelectedDefinitionIds(candidates.map((c) => c.id));
+  }
+
+  function clearAllDefinitions() {
+    setSelectedDefinitionIds([]);
+  }
 
   async function generateShareCard() {
+    if (selectedDefinitionIds.length === 0) {
+      return;
+    }
+
     setIsGenerating(true);
+    setShowDefinitionSelector(false);
     try {
-      // Get the best definition (highest weight)
-      const bestDefinition = candidates.reduce((best, current) =>
-        current.weight > best.weight ? current : best
+      const selectedDefinitions = candidates.filter((c) =>
+        selectedDefinitionIds.includes(c.id)
       );
 
       // Create canvas with real content
@@ -72,17 +113,59 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
         throw new Error("Could not get canvas context");
       }
 
+      // First pass: Calculate actual content height
+      const definitionWidth = 680;
+      const lineHeight = 22;
+      let contentHeight = 140; // Starting Y position after title
+
+      // Measure each definition's height
+      selectedDefinitions.forEach((definition, index) => {
+        // Definition number
+        if (selectedDefinitions.length > 1) {
+          contentHeight += 25;
+        }
+
+        // Count lines for definition text
+        ctx.font = "16px Arial";
+        const words = definition.text.split(" ");
+        let line = "";
+        let lineCount = 0;
+        const maxLines = 3;
+
+        for (let i = 0; i < words.length && lineCount < maxLines; i++) {
+          const testLine = line + words[i] + " ";
+          const metrics = ctx.measureText(testLine);
+
+          if (metrics.width > definitionWidth && i > 0) {
+            line = words[i] + " ";
+            lineCount++;
+          } else {
+            line = testLine;
+          }
+        }
+        // Add last line
+        contentHeight += (lineCount + 1) * lineHeight + 5;
+
+        // Source and badge height
+        contentHeight += 20;
+
+        // Space before next definition
+        if (index < selectedDefinitions.length - 1) {
+          contentHeight += 30;
+        }
+      });
+
+      // Add footer spacing
+      const footerSpacing = 50;
+      const calculatedHeight = contentHeight + footerSpacing + 30;
+
       // Spotify-style dimensions
       canvas.width = 800;
-      canvas.height = 400;
+      canvas.height = calculatedHeight;
 
       // Dark background
       ctx.fillStyle = "#121212";
-      ctx.fillRect(0, 0, 800, 400);
-
-      // Card background
-      ctx.fillStyle = "#181818";
-      ctx.fillRect(40, 30, 720, 340);
+      ctx.fillRect(0, 0, 800, calculatedHeight);
 
       // Ambiguity logo
       ctx.fillStyle = "#1db854";
@@ -94,64 +177,93 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
       ctx.font = "bold 36px Arial";
       ctx.fillText(term, 70, 100);
 
-      // Definition
-      ctx.fillStyle = "#b3b3b3";
-      ctx.font = "18px Arial";
-      const definitionY = 140;
-      const definitionWidth = 680;
+      // Render each selected definition
+      let currentY = 140;
 
-      // Simple text wrapping
-      const words = bestDefinition.text.split(" ");
-      let line = "";
-      let currentY = definitionY;
-      const lineHeight = 24;
-
-      for (let i = 0; i < words.length; i++) {
-        const testLine = line + words[i] + " ";
-        const metrics = ctx.measureText(testLine);
-
-        if (metrics.width > definitionWidth && i > 0) {
-          ctx.fillText(line, 70, currentY);
-          line = words[i] + " ";
-          currentY += lineHeight;
-        } else {
-          line = testLine;
+      selectedDefinitions.forEach((definition, index) => {
+        // Definition number (if multiple)
+        if (selectedDefinitions.length > 1) {
+          ctx.fillStyle = "#1db854";
+          ctx.font = "bold 36px Arial";
+          ctx.fillText(`#${index + 1}`, 70, currentY);
+          currentY += 25;
         }
-      }
-      ctx.fillText(line, 70, currentY);
 
-      // Source and confidence
-      const sourceY = currentY + 40;
+        // Definition text
+        ctx.fillStyle = "#b3b3b3";
+        ctx.font = "20px Arial";
+
+        // Simple text wrapping
+        const words = definition.text.split(" ");
+        let line = "";
+        const maxLines = 3;
+        let lineCount = 0;
+
+        for (let i = 0; i < words.length && lineCount < maxLines; i++) {
+          const testLine = line + words[i] + " ";
+          const metrics = ctx.measureText(testLine);
+
+          if (metrics.width > definitionWidth && i > 0) {
+            ctx.fillText(line, 70, currentY);
+            line = words[i] + " ";
+            currentY += lineHeight;
+            lineCount++;
+          } else {
+            line = testLine;
+          }
+        }
+
+        // Add ellipsis if text was truncated
+        if (lineCount >= maxLines && line.length < definition.text.length) {
+          ctx.fillText(line.trim() + "...", 70, currentY);
+        } else {
+          ctx.fillText(line, 70, currentY);
+        }
+        currentY += lineHeight + 5;
+
+        // Source and confidence
+        ctx.fillStyle = "#535353";
+        ctx.font = "20px Arial";
+        ctx.fillText(definition.source, 70, currentY);
+
+        // Confidence badge
+        const confidencePercent = Math.round(definition.weight * 100);
+        const confidenceText = `${confidencePercent}%`;
+        const badgeWidth = ctx.measureText(confidenceText).width + 16;
+        const badgeHeight = 20;
+        const badgeX = 70 + ctx.measureText(definition.source).width + 15;
+        const badgeY = currentY - 18;
+
+        // Badge background
+        ctx.fillStyle = "#1db854";
+        ctx.fillRect(badgeX, badgeY + 2, badgeWidth, badgeHeight);
+
+        // Badge text
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 11px Arial";
+        ctx.fillText(confidenceText, badgeX + 12, badgeY + 16);
+
+        currentY += 20;
+
+        // Space before next definition
+        if (index < selectedDefinitions.length - 1) {
+          currentY += 30;
+        }
+      });
+
+      // Footer positioned after content with proper spacing
+      const footerY = currentY + footerSpacing;
       ctx.fillStyle = "#535353";
-      ctx.font = "14px Arial";
-      ctx.fillText(bestDefinition.source, 70, sourceY);
-
-      // Confidence badge
-      const confidencePercent = Math.round(bestDefinition.weight * 100);
-      const confidenceText = `${confidencePercent}% confidence`;
-      const badgeWidth = ctx.measureText(confidenceText).width + 20;
-      const badgeHeight = 24;
-      const badgeX = 70 + ctx.measureText(bestDefinition.source).width + 20;
-      const badgeY = sourceY - 20;
-
-      // Badge background
-      ctx.fillStyle = "#1db854";
-      ctx.fillRect(badgeX, badgeY, badgeWidth, badgeHeight);
-
-      // Badge text
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 12px Arial";
-      ctx.fillText(confidenceText, badgeX + 10, badgeY + 16);
-
-      // Footer
-      const footerY = 350;
-      ctx.fillStyle = "#535353";
-      ctx.font = "12px Arial";
-      ctx.fillText(`${candidates.length} definitions available`, 70, footerY);
+      ctx.font = "16px Arial";
+      ctx.fillText(
+        `${selectedDefinitions.length} of ${candidates.length} definitions`,
+        70,
+        footerY
+      );
 
       ctx.fillStyle = "#1db854";
-      ctx.font = "bold 12px Arial";
-      ctx.fillText("Explore on Ambiguity", 70 + 600, footerY);
+      ctx.font = "bold 16px Arial";
+      ctx.fillText("Explore on Ambiguity", 580, footerY);
 
       // Convert to blob and show in popup
       canvas.toBlob(
@@ -241,7 +353,10 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onClick={generateShareCard} disabled={isGenerating}>
+          <DropdownMenuItem
+            onClick={openDefinitionSelector}
+            disabled={isGenerating}
+          >
             {isGenerating ? (
               <div className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
@@ -343,13 +458,11 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
             </div>
 
             {/* Image Preview */}
-            <div className="p-4 flex justify-center bg-gray-50">
-              <Image
+            <div className="p-4 flex justify-center bg-gray-50 max-h-[60vh] overflow-auto">
+              <img
                 src={previewImage}
                 alt={`${previewTerm} share card`}
-                width={800}
-                height={400}
-                className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-sm"
+                className="max-w-full h-auto object-contain rounded-lg shadow-sm"
               />
             </div>
 
@@ -383,6 +496,196 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
                     />
                   </svg>
                   Download PNG
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Definition Selector Dialog */}
+      {showDefinitionSelector && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+          onClick={closeDefinitionSelector}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Select Definition
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Choose which definition to feature on the share card
+                </p>
+              </div>
+              <button
+                onClick={closeDefinitionSelector}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <svg
+                  className="w-6 h-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Selection Controls */}
+            <div className="px-6 pt-4 pb-2 flex items-center justify-between border-b">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={selectAllDefinitions}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={clearAllDefinitions}
+                  className="text-xs font-medium text-gray-600 hover:text-gray-700 transition-colors"
+                >
+                  Clear All
+                </button>
+              </div>
+              <span className="text-xs text-gray-500">
+                {selectedDefinitionIds.length} selected
+              </span>
+            </div>
+
+            {/* Definitions List */}
+            <div className="p-6 overflow-y-auto max-h-[50vh] space-y-3">
+              {candidates
+                .sort((a, b) => b.weight - a.weight)
+                .map((candidate) => {
+                  const isSelected = selectedDefinitionIds.includes(
+                    candidate.id
+                  );
+                  return (
+                    <button
+                      key={candidate.id}
+                      onClick={() => toggleDefinitionSelection(candidate.id)}
+                      className={`w-full text-left p-4 border-2 rounded-lg transition-all group ${
+                        isSelected
+                          ? "border-blue-500 bg-blue-50"
+                          : "border-gray-200 hover:border-blue-300 hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Checkbox */}
+                        <div className="flex-shrink-0 mt-1">
+                          <div
+                            className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "bg-blue-500 border-blue-500"
+                                : "border-gray-300 group-hover:border-blue-400"
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg
+                                className="w-3 h-3 text-white"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={3}
+                                  d="M5 13l4 4L19 7"
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className={`text-sm leading-relaxed mb-2 ${
+                              isSelected ? "text-gray-900" : "text-gray-800"
+                            }`}
+                          >
+                            {candidate.text}
+                          </p>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-xs text-gray-500">
+                              {candidate.source}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 w-16">
+                                <div
+                                  className="bg-green-500 h-1.5 rounded-full"
+                                  style={{
+                                    width: `${candidate.weight * 100}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-xs font-medium text-gray-600">
+                                {Math.round(candidate.weight * 100)}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-6 border-t bg-gray-50">
+              <p className="text-sm text-gray-600">
+                {candidates.length} definition
+                {candidates.length !== 1 ? "s" : ""} available
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={closeDefinitionSelector}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={generateShareCard}
+                  disabled={selectedDefinitionIds.length === 0 || isGenerating}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isGenerating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                      Generate Card
+                    </>
+                  )}
                 </button>
               </div>
             </div>
