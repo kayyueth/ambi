@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -459,10 +460,13 @@ export function ShareButton({ term, candidates, slug }: ShareButtonProps) {
 
             {/* Image Preview */}
             <div className="p-4 flex justify-center bg-gray-50 max-h-[60vh] overflow-auto">
-              <img
+              <Image
                 src={previewImage}
                 alt={`${previewTerm} share card`}
+                width={800}
+                height={600}
                 className="max-w-full h-auto object-contain rounded-lg shadow-sm"
+                unoptimized
               />
             </div>
 

@@ -79,7 +79,7 @@ export function DeleteConfirmationDialog({
           <p className="text-sm text-muted-foreground mb-4">{description}</p>
           {itemName && (
             <div className="bg-muted rounded-lg p-3">
-              <p className="text-sm font-medium">"{itemName}"</p>
+              <p className="text-sm font-medium">&ldquo;{itemName}&rdquo;</p>
             </div>
           )}
           <p className="text-sm text-red-600 mt-4 font-medium">

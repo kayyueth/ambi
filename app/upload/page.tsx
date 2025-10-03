@@ -3,13 +3,12 @@
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { TextPreviewDialog } from "@/components/text-preview-dialog";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DragDropUpload } from "@/components/drag-drop-upload";
 
 function UploadPageContent() {
-  const router = useRouter();
   const params = useSearchParams();
   const [term, setTerm] = useState(params.get("term") ?? "");
   const [definition, setDefinition] = useState("");
@@ -181,10 +180,6 @@ function UploadPageContent() {
     } finally {
       setIsUploading(false);
     }
-  }
-
-  function handleFileSelect() {
-    fileInputRef.current?.click();
   }
 
   function handleTextPreviewConfirm(editedText: string) {
