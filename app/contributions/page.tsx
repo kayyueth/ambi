@@ -692,15 +692,6 @@ function ContributionsPageContent() {
                         <div className="min-w-0 flex-1">
                           <p className="line-clamp-2 text-sm">{item.text}</p>
                           <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            {item.slug && (
-                              <Link
-                                href={`/term/${item.slug}`}
-                                className="hover:underline"
-                              >
-                                View term
-                              </Link>
-                            )}
-                            <span>•</span>
                             <span>
                               {new Date(item.createdAt).toLocaleDateString()}
                             </span>

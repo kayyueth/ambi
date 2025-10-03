@@ -16,6 +16,7 @@ interface ContributionItem {
   text: string;
   source: string;
   term?: string | null;
+  status: "draft" | "pending" | "published" | "rejected";
 }
 
 interface EditContributionDialogProps {
@@ -38,6 +39,7 @@ export function EditContributionDialog({
   const [source, setSource] = useState("");
   const [term, setTerm] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Update form when contribution changes
@@ -51,7 +53,7 @@ export function EditContributionDialog({
   }, [contribution]);
 
   function handleClose() {
-    if (!isSaving) {
+    if (!isSaving && !isSubmitting) {
       setText("");
       setSource("");
       setTerm("");
@@ -93,6 +95,59 @@ export function EditContributionDialog({
       setError((err as Error).message);
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleSubmitForReview() {
+    if (!contribution) return;
+
+    const validationIssues = [];
+    if (!text.trim()) {
+      validationIssues.push("Definition is required");
+    }
+    if (text.trim().length < 10) {
+      validationIssues.push("Definition must be at least 10 characters long");
+    }
+    if (!source.trim()) {
+      validationIssues.push("Source is required");
+    }
+    if (!term.trim()) {
+      validationIssues.push("Term is required to submit for review");
+    }
+
+    if (validationIssues.length > 0) {
+      setError(validationIssues.join(". ") + ".");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      // Update the status to pending first
+      const statusRes = await fetch(`/api/contributions/${contribution.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "pending" }),
+      });
+
+      const statusResult = await statusRes.json();
+      if (!statusRes.ok) {
+        throw new Error(statusResult?.error ?? "Failed to submit for review");
+      }
+
+      // Then save the changes (which will reload the data with the updated status)
+      await onSave(contribution.id, {
+        text: text.trim(),
+        source: source.trim(),
+        term: term.trim(),
+      });
+
+      handleClose();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -174,7 +229,7 @@ export function EditContributionDialog({
             type="button"
             variant="outline"
             onClick={handleClose}
-            disabled={isSaving}
+            disabled={isSaving || isSubmitting}
           >
             Cancel
           </Button>
@@ -183,6 +238,7 @@ export function EditContributionDialog({
             onClick={handleSave}
             disabled={
               isSaving ||
+              isSubmitting ||
               !text.trim() ||
               text.trim().length < 10 ||
               !source.trim()
@@ -190,6 +246,22 @@ export function EditContributionDialog({
           >
             {isSaving ? "Saving..." : "Save Changes"}
           </Button>
+          {contribution?.status === "draft" && (
+            <Button
+              type="button"
+              onClick={handleSubmitForReview}
+              disabled={
+                isSaving ||
+                isSubmitting ||
+                !text.trim() ||
+                text.trim().length < 10 ||
+                !source.trim() ||
+                !term.trim()
+              }
+            >
+              {isSubmitting ? "Submitting..." : "Submit for Review"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
