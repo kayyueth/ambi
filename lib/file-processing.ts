@@ -22,6 +22,35 @@ export async function extractTextFromImage(
   try {
     console.log("Starting OCR processing for image type:", mimeType);
 
+    // Add timeout for OCR processing to prevent infinite hanging
+    const OCR_TIMEOUT = 45000; // 45 seconds timeout
+
+    const ocrPromise = performOCR(buffer, mimeType);
+    const timeoutPromise = new Promise<FileProcessingResult>((_, reject) => {
+      setTimeout(
+        () => reject(new Error("OCR processing timeout")),
+        OCR_TIMEOUT
+      );
+    });
+
+    return await Promise.race([ocrPromise, timeoutPromise]);
+  } catch (error) {
+    console.error("OCR processing error:", error);
+    return {
+      text: "",
+      method: "ocr",
+      error: `OCR processing failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    };
+  }
+}
+
+async function performOCR(
+  buffer: Buffer,
+  mimeType: string
+): Promise<FileProcessingResult> {
+  try {
     // Validate image type
     const supportedTypes = [
       "image/jpeg",
@@ -47,13 +76,31 @@ export async function extractTextFromImage(
     }
 
     console.log("Creating Tesseract worker...");
-    // Create worker without verbose logging for better performance
-    const worker = await createWorker("eng");
+    // Create worker with optimized settings for deployment
+    const worker = await createWorker({
+      logger: (m) => console.log(m), // Minimal logging for deployment
+      workerPath: "/tesseract/worker.min.js",
+      langPath: "/tesseract",
+      corePath: "/tesseract/tesseract-core.wasm.js",
+    });
+
+    await worker.loadLanguage("eng");
+    await worker.initialize("eng");
+
+    // Set optimized parameters for faster processing
+    await worker.setParameters({
+      tessedit_char_whitelist:
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?()-",
+      tessedit_pageseg_mode: "6", // Assume a single uniform block of text
+    });
 
     console.log("Recognizing text from image...");
+    // Use optimized recognition with preprocessing
     const {
       data: { text, confidence },
-    } = await worker.recognize(buffer);
+    } = await worker.recognize(buffer, {
+      rectangle: { top: 0, left: 0, width: 0, height: 0 }, // Process full image
+    });
     await worker.terminate();
 
     const cleanText = text.trim();

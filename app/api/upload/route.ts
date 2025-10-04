@@ -251,4 +251,5 @@ async function handleTextUpload(body: Partial<UploadBody>) {
 }
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // 60 seconds for Pro plans, adjust based on your Vercel plan
 export const dynamic = "force-dynamic";
