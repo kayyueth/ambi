@@ -3,6 +3,12 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { User, Session, AuthError } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
+import {
+  isDevMode,
+  getDevUser,
+  getDevSession,
+  logDevModeStatus,
+} from "@/lib/dev-mode";
 
 interface AuthContextType {
   user: User | null;
@@ -32,6 +38,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = getSupabaseBrowserClient();
 
   useEffect(() => {
+    // If developer mode is enabled, use mock user and session
+    if (isDevMode()) {
+      logDevModeStatus();
+      setUser(getDevUser());
+      setSession(getDevSession());
+      setLoading(false);
+      return;
+    }
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);

@@ -1,9 +1,16 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { isDevMode } from "@/lib/dev-mode";
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next();
+
+  // Skip authentication checks in developer mode
+  if (isDevMode()) {
+    console.log("🔧 Dev Mode: Bypassing auth check for", req.nextUrl.pathname);
+    return res;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

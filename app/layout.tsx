@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TopNav } from "@/components/top-nav";
 import { AuthProvider } from "@/lib/auth/context";
+import { DevModeIndicator } from "@/components/dev-mode-indicator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,6 +33,7 @@ export default function RootLayout({
         <AuthProvider>
           <TopNav />
           <div className="mx-auto max-w-6xl px-4 py-6">{children}</div>
+          <DevModeIndicator />
         </AuthProvider>
       </body>
     </html>

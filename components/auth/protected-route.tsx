@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { isDevMode } from "@/lib/dev-mode";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -22,13 +23,23 @@ export function ProtectedRoute({ children, fallback }: ProtectedRouteProps) {
   const { user, loading } = useAuth();
   const router = useRouter();
 
+  // Skip protection in developer mode
+  const devModeEnabled = isDevMode();
+
   useEffect(() => {
+    if (devModeEnabled) return; // Skip redirect in dev mode
+
     if (!loading && !user) {
       // Redirect to sign in with the current path as redirectTo
       const currentPath = window.location.pathname;
       router.push(`/auth/signin?redirectTo=${encodeURIComponent(currentPath)}`);
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, devModeEnabled]);
+
+  // In dev mode, skip all checks and render children directly
+  if (devModeEnabled) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (
