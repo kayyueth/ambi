@@ -4,7 +4,6 @@ import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
-import { TextPreviewDialog } from "@/components/text-preview-dialog";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { DragDropUpload } from "@/components/drag-drop-upload";
 
@@ -17,7 +16,6 @@ function UploadPageContent() {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [showTextPreview, setShowTextPreview] = useState(false);
   const [extractedText, setExtractedText] = useState("");
   const [extractionMethod, setExtractionMethod] = useState<"pdf-text" | "ocr">(
     "pdf-text"
@@ -162,34 +160,31 @@ function UploadPageContent() {
         throw new Error(data?.error ?? "File upload failed");
       }
 
-      // Store extracted text and metadata for preview dialog
-      setExtractedText(data.extractedText || "");
+      // Store extracted text and metadata, and set definition directly
+      const extractedContent = data.extractedText || "";
+      setExtractedText(extractedContent);
+      setDefinition(extractedContent); // Set directly in textarea
       setExtractionMethod(data.method || "pdf-text");
       setExtractionConfidence(data.confidence);
       setUploadedFileName(fileToUpload.name);
       setUploadedFile(fileToUpload);
 
-      console.log("UploadPage: Setting showTextPreview to true");
-      // Show preview dialog instead of directly submitting
-      setShowTextPreview(true);
+      console.log("UploadPage: Text extracted and set in definition field");
+      // Show success message
       setSuccess(
-        `File processed successfully! Please review and edit the extracted text, then fill in the term name and source (required), and click Submit to save your contribution.`
+        `File processed successfully using ${
+          data.method === "ocr" ? "OCR" : "text extraction"
+        }${
+          data.confidence
+            ? ` (confidence: ${Math.round(data.confidence)}%)`
+            : ""
+        }! Review the extracted text below, fill in the term name and source, then click Submit.`
       );
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setIsUploading(false);
     }
-  }
-
-  function handleTextPreviewConfirm(editedText: string) {
-    setDefinition(editedText);
-    setShowTextPreview(false);
-    setSuccess(`Text updated! Ready to submit.`);
-  }
-
-  function handleTextPreviewClose() {
-    setShowTextPreview(false);
   }
 
   function handleRemoveFile() {
@@ -297,9 +292,19 @@ function UploadPageContent() {
               </div>
 
               <div className="space-y-2">
-                <label htmlFor="definition" className="text-sm font-medium">
-                  Definition *
-                </label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="definition" className="text-sm font-medium">
+                    Definition *
+                  </label>
+                  {uploadedFile && extractedText && (
+                    <span className="text-xs text-muted-foreground bg-blue-50 px-2 py-1 rounded">
+                      {extractionMethod === "ocr" ? "📷 OCR" : "📄 Text"}{" "}
+                      extracted
+                      {extractionConfidence &&
+                        ` • ${Math.round(extractionConfidence)}% confidence`}
+                    </span>
+                  )}
+                </div>
                 <textarea
                   id="definition"
                   value={definition}
@@ -393,17 +398,6 @@ function UploadPageContent() {
           </div>
         </div>
       </div>
-
-      {/* Text Preview Dialog */}
-      <TextPreviewDialog
-        isOpen={showTextPreview}
-        onClose={handleTextPreviewClose}
-        onConfirm={handleTextPreviewConfirm}
-        extractedText={extractedText}
-        method={extractionMethod}
-        confidence={extractionConfidence}
-        fileName={uploadedFileName}
-      />
 
       {/* Validation Warning Dialog */}
       {showValidationWarning && (
