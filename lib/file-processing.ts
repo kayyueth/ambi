@@ -10,54 +10,6 @@ export interface FileProcessingResult {
 }
 
 /**
- * Extract text from PDF file
- * @param buffer - PDF file buffer
- * @returns Extracted text and processing method
- */
-export async function extractTextFromPDF(
-  buffer: Buffer
-): Promise<FileProcessingResult> {
-  try {
-    console.log("Starting PDF text extraction...");
-
-    // Dynamic import to avoid Next.js issues
-    if (!pdf) {
-      console.log("Importing pdf-parse...");
-      const pdfModule = await import("pdf-parse");
-      pdf = pdfModule.default;
-    }
-
-    console.log("Parsing PDF...");
-    const data = await pdf(buffer);
-    const text = data.text.trim();
-
-    console.log("PDF extraction result:", { textLength: text.length });
-
-    if (!text) {
-      return {
-        text: "",
-        method: "pdf-text",
-        error: "No text content found in PDF",
-      };
-    }
-
-    return {
-      text,
-      method: "pdf-text",
-    };
-  } catch (error) {
-    console.error("PDF processing error:", error);
-    return {
-      text: "",
-      method: "pdf-text",
-      error: `PDF processing failed: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`,
-    };
-  }
-}
-
-/**
  * Extract text from image using OCR
  * @param buffer - Image file buffer
  * @param mimeType - MIME type of the image
@@ -95,9 +47,8 @@ export async function extractTextFromImage(
     }
 
     console.log("Creating Tesseract worker...");
-    const worker = await createWorker("eng", 1, {
-      logger: (m) => console.log("Tesseract:", m),
-    });
+    // Create worker without verbose logging for better performance
+    const worker = await createWorker("eng");
 
     console.log("Recognizing text from image...");
     const {
@@ -137,9 +88,11 @@ export async function extractTextFromImage(
 /**
  * Determine if a PDF has selectable text or is scanned
  * @param buffer - PDF file buffer
- * @returns true if PDF has selectable text, false if scanned
+ * @returns Object containing whether PDF has selectable text and the parsed data
  */
-export async function isPDFSelectableText(buffer: Buffer): Promise<boolean> {
+export async function checkPDFAndExtractText(
+  buffer: Buffer
+): Promise<{ hasSelectableText: boolean; text: string; error?: string }> {
   try {
     // Dynamic import to avoid Next.js issues
     if (!pdf) {
@@ -152,10 +105,19 @@ export async function isPDFSelectableText(buffer: Buffer): Promise<boolean> {
 
     // If we get substantial text content, it's likely selectable
     // Scanned PDFs typically have very little or no text content
-    return text.length > 100;
+    return {
+      hasSelectableText: text.length > 100,
+      text: text,
+    };
   } catch (error) {
     console.error("Error checking PDF text selectability:", error);
-    return false;
+    return {
+      hasSelectableText: false,
+      text: "",
+      error: `PDF parsing failed: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`,
+    };
   }
 }
 
@@ -227,12 +189,27 @@ export async function processUploadedFile(
     // Handle PDF files
     if (mimeType === "application/pdf") {
       console.log("Processing PDF file...");
-      const hasSelectableText = await isPDFSelectableText(buffer);
+      // Use optimized single-pass PDF parsing
+      const pdfResult = await checkPDFAndExtractText(buffer);
 
-      if (hasSelectableText) {
-        console.log("PDF has selectable text, extracting...");
-        // Extract text directly from PDF
-        return await extractTextFromPDF(buffer);
+      if (pdfResult.error) {
+        return {
+          text: "",
+          method: "pdf-text",
+          error: pdfResult.error,
+        };
+      }
+
+      if (pdfResult.hasSelectableText) {
+        console.log(
+          "PDF has selectable text, extracted:",
+          pdfResult.text.length,
+          "characters"
+        );
+        return {
+          text: pdfResult.text,
+          method: "pdf-text",
+        };
       } else {
         console.log("PDF appears to be scanned, suggesting image upload");
         // For scanned PDFs, we would need to convert to image first
