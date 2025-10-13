@@ -8,13 +8,11 @@ const nextConfig: NextConfig = {
     }
     return config;
   },
-  // Optimize for deployment
-  experimental: {
-    serverComponentsExternalPackages: ["tesseract.js"],
-  },
   // Ensure proper handling of large files
-  serverActions: {
-    bodySizeLimit: "10mb",
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
   },
 };
 
