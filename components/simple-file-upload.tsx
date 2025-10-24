@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface DragDropUploadProps {
+interface SimpleFileUploadProps {
   onFileSelect: (file: File) => void;
   disabled?: boolean;
   acceptedTypes?: string[];
@@ -15,7 +15,7 @@ interface DragDropUploadProps {
   onRemoveFile?: () => void;
 }
 
-export function DragDropUpload({
+export function SimpleFileUpload({
   onFileSelect,
   disabled = false,
   acceptedTypes = [".pdf", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff"],
@@ -24,9 +24,7 @@ export function DragDropUpload({
   isUploading = false,
   uploadedFile = null,
   onRemoveFile,
-}: DragDropUploadProps) {
-  const [isDragOver, setIsDragOver] = useState(false);
-  const [isPasting, setIsPasting] = useState(false);
+}: SimpleFileUploadProps) {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -54,7 +52,7 @@ export function DragDropUpload({
   const handleFile = useCallback(
     (file: File) => {
       console.log(
-        "DragDropUpload: handleFile called with:",
+        "SimpleFileUpload: handleFile called with:",
         file.name,
         file.type,
         file.size
@@ -62,67 +60,14 @@ export function DragDropUpload({
       setError(null);
       const validationError = validateFile(file);
       if (validationError) {
-        console.log("DragDropUpload: validation error:", validationError);
+        console.log("SimpleFileUpload: validation error:", validationError);
         setError(validationError);
         return;
       }
-      console.log("DragDropUpload: calling onFileSelect");
+      console.log("SimpleFileUpload: calling onFileSelect");
       onFileSelect(file);
     },
     [onFileSelect, validateFile]
-  );
-
-  const handleDragOver = useCallback(
-    (e: React.DragEvent) => {
-      console.log("DragDropUpload: handleDragOver triggered");
-      e.preventDefault();
-      e.stopPropagation();
-      if (!disabled) {
-        setIsDragOver(true);
-      }
-    },
-    [disabled]
-  );
-
-  const handleDragEnter = useCallback(
-    (e: React.DragEvent) => {
-      console.log("DragDropUpload: handleDragEnter triggered");
-      e.preventDefault();
-      e.stopPropagation();
-      if (!disabled) {
-        setIsDragOver(true);
-      }
-    },
-    [disabled]
-  );
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    console.log("DragDropUpload: handleDragLeave triggered");
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOver(false);
-  }, []);
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      console.log("DragDropUpload: handleDrop triggered");
-      e.preventDefault();
-      e.stopPropagation();
-      setIsDragOver(false);
-
-      if (disabled) {
-        console.log("DragDropUpload: disabled, returning");
-        return;
-      }
-
-      const files = Array.from(e.dataTransfer.files);
-      console.log("DragDropUpload: files dropped:", files.length, files);
-      if (files.length > 0) {
-        console.log("DragDropUpload: calling handleFile with:", files[0].name);
-        handleFile(files[0]); // Only handle the first file
-      }
-    },
-    [disabled, handleFile]
   );
 
   const handleFileInputChange = useCallback(
@@ -140,36 +85,6 @@ export function DragDropUpload({
       fileInputRef.current?.click();
     }
   }, [disabled]);
-
-  const handlePaste = useCallback(
-    (e: ClipboardEvent) => {
-      if (disabled || isPasting) return;
-
-      const items = e.clipboardData?.items;
-      if (!items) return;
-
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (item.kind === "file") {
-          const file = item.getAsFile();
-          if (file) {
-            setIsPasting(true);
-            handleFile(file);
-            setTimeout(() => setIsPasting(false), 1000);
-            break;
-          }
-        }
-      }
-    },
-    [disabled, handleFile, isPasting]
-  );
-
-  // Add paste event listener
-  useEffect(() => {
-    const handlePasteEvent = (e: ClipboardEvent) => handlePaste(e);
-    document.addEventListener("paste", handlePasteEvent);
-    return () => document.removeEventListener("paste", handlePasteEvent);
-  }, [handlePaste]);
 
   // If file is uploaded, show file info instead of upload area
   if (uploadedFile && !isUploading) {
@@ -236,17 +151,10 @@ export function DragDropUpload({
       <div
         className={cn(
           "relative border-2 border-dashed rounded-lg p-6 text-center transition-all duration-200 cursor-pointer group",
-          isDragOver
-            ? "border-primary bg-primary/5 scale-[1.02]"
-            : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30",
+          "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/30",
           disabled && "opacity-50 cursor-not-allowed",
-          isPasting && "border-green-500 bg-green-50",
           isUploading && "border-blue-500 bg-blue-50"
         )}
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
         onClick={handleClick}
       >
         <input
@@ -274,20 +182,6 @@ export function DragDropUpload({
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-            ) : isPasting ? (
-              <svg
-                className="w-full h-full animate-pulse text-green-500"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
             ) : (
               <svg
                 className="w-full h-full"
@@ -307,27 +201,19 @@ export function DragDropUpload({
 
           <div className="space-y-2">
             <p className="text-lg font-medium">
-              {isUploading
-                ? "Processing your file..."
-                : isPasting
-                ? "File pasted successfully!"
-                : isDragOver
-                ? "Drop your file here"
-                : "Upload PDF or Image"}
+              {isUploading ? "Processing your file..." : "Upload PDF or Image"}
             </p>
             <p className="text-sm text-muted-foreground">
               {isUploading
                 ? "Please wait while we extract text from your file"
-                : isPasting
-                ? "Processing your file..."
-                : "Drag and drop a file here, or click to browse"}
+                : "Click to browse and select a file"}
             </p>
             <p className="text-xs text-muted-foreground">
               Supports: {acceptedTypes.join(", ")} • Max {maxSizeInMB}MB
             </p>
           </div>
 
-          {!isPasting && !isUploading && (
+          {!isUploading && (
             <Button
               type="button"
               variant="outline"
@@ -339,11 +225,11 @@ export function DragDropUpload({
           )}
         </div>
 
-        {(isPasting || isUploading) && (
+        {isUploading && (
           <div className="absolute inset-0 bg-white/80 rounded-lg flex items-center justify-center backdrop-blur-sm">
             <div className="bg-white rounded-full p-3 shadow-lg">
               <svg
-                className="w-6 h-6 text-green-500 animate-spin"
+                className="w-6 h-6 text-blue-500 animate-spin"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -380,11 +266,6 @@ export function DragDropUpload({
           </div>
         </div>
       )}
-
-      <p className="text-xs text-muted-foreground text-center">
-        💡 Tip: You can also paste files directly from your clipboard
-        (Ctrl/Cmd+V)
-      </p>
     </div>
   );
 }

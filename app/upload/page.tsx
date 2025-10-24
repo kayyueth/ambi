@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
-import { DragDropUpload } from "@/components/drag-drop-upload";
+import { SimpleFileUpload } from "@/components/simple-file-upload";
 
 function UploadPageContent() {
   const params = useSearchParams();
-  const [term, setTerm] = useState(params.get("term") ?? "");
+  const [term, setTerm] = useState(params?.get("term") ?? "");
   const [definition, setDefinition] = useState("");
   const [source, setSource] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -211,7 +211,7 @@ function UploadPageContent() {
         <div className="space-y-6">
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Upload Document</h2>
-            <DragDropUpload
+            <SimpleFileUpload
               onFileSelect={handleFileUpload}
               disabled={isSubmitting || isUploading}
               acceptedTypes={[
