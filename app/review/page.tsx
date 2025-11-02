@@ -12,11 +12,14 @@ import {
 } from "@/components/ui/dialog";
 import { nextReviewCard } from "@/lib/mock-data";
 import { Textarea } from "@/components/ui/textarea";
+import Link from "next/link";
 
 interface Card {
   id: string;
   text: string;
   term: string;
+  source: string;
+  slug: string;
 }
 
 export default function ReviewPage() {
@@ -41,8 +44,10 @@ export default function ReviewPage() {
         .filter(Boolean)
         .map((x, i) => ({
           id: `${x!.candidate.id}-${i}`,
-          text: `${x!.candidate.text} — ${x!.term.term}`,
-          term: x!.term.slug,
+          text: x!.candidate.text,
+          term: x!.term.term,
+          source: x!.candidate.source,
+          slug: x!.term.slug,
         }));
       setCards(initialCards);
       setIsInitialized(true);
@@ -56,8 +61,10 @@ export default function ReviewPage() {
       if (refill) {
         rest.push({
           id: `${refill.candidate.id}-${Date.now()}`,
-          text: `${refill.candidate.text} — ${refill.term.term}`,
-          term: refill.term.slug,
+          text: refill.candidate.text,
+          term: refill.term.term,
+          source: refill.candidate.source,
+          slug: refill.term.slug,
         });
       }
       return rest;
@@ -122,8 +129,10 @@ export default function ReviewPage() {
       if (refill) {
         rest.push({
           id: `${refill.candidate.id}-${Date.now()}`,
-          text: `${refill.candidate.text} — ${refill.term.term}`,
-          term: refill.term.slug,
+          text: refill.candidate.text,
+          term: refill.term.term,
+          source: refill.candidate.source,
+          slug: refill.term.slug,
         });
       }
       return rest;
@@ -204,7 +213,7 @@ export default function ReviewPage() {
         <div className="space-y-4">
           <div
             ref={cardRef}
-            className="relative rounded-lg border p-6 min-h-40 flex items-center text-lg cursor-pointer select-none transition-all duration-200 hover:shadow-lg"
+            className="relative rounded-lg border bg-card p-8 min-h-[280px] flex flex-col cursor-pointer select-none transition-all duration-200 hover:shadow-lg hover:border-ring/50"
             onClick={handleCardClick}
             onMouseMove={handleCardHover}
             onMouseLeave={() => {
@@ -216,36 +225,78 @@ export default function ReviewPage() {
           >
             {/* Left side gradient overlay */}
             {hoveredSide === "left" && (
-              <div className="absolute inset-0 bg-gradient-to-r from-black/10 to-transparent dark:from-white/10 rounded-lg pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-destructive/5 to-transparent rounded-lg pointer-events-none" />
             )}
 
             {/* Right side gradient overlay */}
             {hoveredSide === "right" && (
-              <div className="absolute inset-0 bg-gradient-to-l from-black/10 to-transparent dark:from-white/10 rounded-lg pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-l from-primary/5 to-transparent rounded-lg pointer-events-none" />
             )}
 
             {/* Hold indicator */}
             {isHolding && (
-              <div className="absolute inset-0 bg-gray-500/20 rounded-lg pointer-events-none" />
+              <div className="absolute inset-0 bg-muted/40 rounded-lg pointer-events-none" />
             )}
 
-            <span className="relative z-10">{current.text}</span>
+            <div className="relative z-10 flex flex-col h-full">
+              {/* Term as title */}
+              <div className="mb-4 pb-3 border-b">
+                <h2 className="text-2xl font-bold text-foreground">
+                  {current.term}
+                </h2>
+              </div>
+
+              {/* Definition */}
+              <div className="flex-1 flex items-start">
+                <p className="text-base leading-relaxed text-foreground">
+                  {current.text}
+                </p>
+              </div>
+
+              {/* Footer with source and link */}
+              <div className="mt-6 pt-4 border-t space-y-2">
+                <div className="text-sm text-muted-foreground">
+                  <span className="font-medium">Source:</span>{" "}
+                  <span className="italic">{current.source}</span>
+                </div>
+                <div>
+                  <Link
+                    href={`/term/${current.slug}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-sm text-primary hover:text-primary/80 hover:underline inline-flex items-center gap-1.5 font-medium transition-colors"
+                  >
+                    View term details
+                    <span className="text-xs">→</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
           </div>
           {/* Below-card labels */}
-          <div className="flex items-center justify-between px-1 text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-4 px-2">
             <div
-              className={`px-2 py-1 rounded-full border bg-background shadow-sm transition-opacity ${
-                hoveredSide === "left" ? "opacity-100" : "opacity-60"
+              className={`flex-1 px-4 py-2.5 rounded-md border bg-muted/50 text-sm font-medium transition-all ${
+                hoveredSide === "left"
+                  ? "opacity-100 border-destructive/30 bg-destructive/5 text-destructive"
+                  : "opacity-50 text-muted-foreground"
               }`}
             >
-              ← Lower
+              <span className="inline-flex items-center gap-2">
+                <span>←</span>
+                <span>Lower</span>
+              </span>
             </div>
             <div
-              className={`px-2 py-1 rounded-full border bg-background shadow-sm transition-opacity ${
-                hoveredSide === "right" ? "opacity-100" : "opacity-60"
+              className={`flex-1 px-4 py-2.5 rounded-md border bg-muted/50 text-sm font-medium transition-all ${
+                hoveredSide === "right"
+                  ? "opacity-100 border-primary/30 bg-primary/5 text-primary"
+                  : "opacity-50 text-muted-foreground"
               }`}
             >
-              Raise →
+              <span className="inline-flex items-center gap-2">
+                <span>Raise</span>
+                <span>→</span>
+              </span>
             </div>
           </div>
         </div>
