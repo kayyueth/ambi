@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 
+interface Suggestion {
+  value: string;
+  label: string;
+  slug?: string;
+  type?: "term" | "source";
+}
+
 export default function Home() {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -16,10 +23,94 @@ export default function Home() {
   );
   const [isLoading, setIsLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Autocomplete suggestions
+  useEffect(
+    function fetchSuggestions() {
+      let aborted = false;
+
+      if (!query.trim() || query.trim().length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
+      const timeoutId = setTimeout(async () => {
+        try {
+          // Fetch both term and source suggestions in parallel
+          const [termRes, sourceRes] = await Promise.all([
+            fetch(
+              `/api/search/autocomplete?q=${encodeURIComponent(
+                query
+              )}&type=term`,
+              { cache: "no-store" }
+            ),
+            fetch(
+              `/api/search/autocomplete?q=${encodeURIComponent(
+                query
+              )}&type=source`,
+              { cache: "no-store" }
+            ),
+          ]);
+
+          if (aborted) return;
+
+          const termData = termRes.ok
+            ? await termRes.json()
+            : { suggestions: [] };
+          const sourceData = sourceRes.ok
+            ? await sourceRes.json()
+            : { suggestions: [] };
+
+          if (aborted) return;
+
+          // Combine suggestions with type indicators
+          const termSuggestions =
+            (termData.suggestions || []).map((s: Suggestion) => ({
+              ...s,
+              type: "term" as const,
+            })) || [];
+
+          const sourceSuggestions =
+            (sourceData.suggestions || []).map((s: Suggestion) => ({
+              ...s,
+              type: "source" as const,
+            })) || [];
+
+          // Combine and limit to 8 total (prioritize terms, then sources)
+          const combined = [
+            ...termSuggestions.slice(0, 6),
+            ...sourceSuggestions.slice(
+              0,
+              8 - termSuggestions.slice(0, 6).length
+            ),
+          ];
+
+          setSuggestions(combined);
+          setShowSuggestions(combined.length > 0);
+        } catch (error) {
+          console.error("Error fetching suggestions:", error);
+          if (!aborted) {
+            setSuggestions([]);
+            setShowSuggestions(false);
+          }
+        }
+      }, 300); // Debounce 300ms
+
+      return () => {
+        aborted = true;
+        clearTimeout(timeoutId);
+      };
+    },
+    [query, isInputFocused]
+  );
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,14 +154,90 @@ export default function Home() {
           Extract, browse, and review the best shared definitions. Build a
           common language layer for everyone.
         </p>
-        <form onSubmit={onSubmit} className="mx-auto max-w-xl flex gap-2">
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search a term…"
-            aria-label="Search terms"
-          />
-          <Button type="submit">Search</Button>
+        <form onSubmit={onSubmit} className="mx-auto max-w-xl">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (!isInputFocused) {
+                    setIsInputFocused(true);
+                  }
+                }}
+                onFocus={() => {
+                  setIsInputFocused(true);
+                }}
+                onBlur={(e) => {
+                  // Delay to allow click on suggestion
+                  const target = e.relatedTarget as HTMLElement;
+                  setTimeout(() => {
+                    if (!target || !target.closest(".suggestions-dropdown")) {
+                      setIsInputFocused(false);
+                      setShowSuggestions(false);
+                    }
+                  }, 200);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    setShowSuggestions(false);
+                    setIsInputFocused(false);
+                  } else if (e.key === "Escape") {
+                    setShowSuggestions(false);
+                    setIsInputFocused(false);
+                  }
+                }}
+                placeholder="Search a term…"
+                aria-label="Search terms"
+              />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="suggestions-dropdown absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-auto">
+                  <ul className="py-1">
+                    {suggestions.map((suggestion, idx) => (
+                      <li key={idx}>
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-accent hover:text-accent-foreground flex items-center justify-between gap-2"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setQuery(suggestion.value);
+                            setShowSuggestions(false);
+                            setIsInputFocused(false);
+                            if (suggestion.type === "source") {
+                              // Navigate to source search
+                              router.push(
+                                `/search?source=${encodeURIComponent(
+                                  suggestion.value
+                                )}`
+                              );
+                            } else if (suggestion.slug) {
+                              // Navigate to term page
+                              router.push(`/term/${suggestion.slug}`);
+                            } else {
+                              // Navigate to term search
+                              router.push(
+                                `/search?q=${encodeURIComponent(
+                                  suggestion.value
+                                )}`
+                              );
+                            }
+                          }}
+                        >
+                          <span>{suggestion.label}</span>
+                          {suggestion.type === "source" && (
+                            <span className="text-xs text-muted-foreground">
+                              Source
+                            </span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+            <Button type="submit">Search</Button>
+          </div>
         </form>
         <div className="flex items-center justify-center gap-3 text-sm">
           <span className="text-muted-foreground">Quick links:</span>

@@ -8,7 +8,16 @@ export async function GET(
   const { slug } = await context.params;
 
   try {
-    const supabase = await getSupabaseServerClient();
+    let supabase;
+    try {
+      supabase = await getSupabaseServerClient();
+    } catch (error) {
+      console.error("Failed to initialize Supabase client:", error);
+      return NextResponse.json(
+        { error: "Service unavailable" },
+        { status: 503 }
+      );
+    }
 
     // Fetch term and its published definitions
     const { data: termData, error: termError } = await supabase

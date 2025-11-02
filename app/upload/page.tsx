@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
@@ -23,7 +23,7 @@ function UploadPageContent() {
   const [extractionConfidence, setExtractionConfidence] = useState<
     number | undefined
   >();
-  const [uploadedFileName, setUploadedFileName] = useState("");
+  // const [uploadedFileName, setUploadedFileName] = useState(""); // Unused - removed to fix build warning
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [showValidationWarning, setShowValidationWarning] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
@@ -78,7 +78,7 @@ function UploadPageContent() {
       setSource("");
       setTerm(""); // Clear the term field as well
       setUploadedFile(null);
-      setUploadedFileName("");
+      // setUploadedFileName(""); // Unused
       setExtractedText("");
       setSuccess(
         `Term "${data.term}" uploaded successfully! You can now add another term.`
@@ -114,7 +114,7 @@ function UploadPageContent() {
       setSource("");
       setTerm(""); // Clear the term field as well
       setUploadedFile(null);
-      setUploadedFileName("");
+      // setUploadedFileName(""); // Unused
       setExtractedText("");
       setSuccess(
         `Draft "${data.term}" saved successfully! You can now add another term.`
@@ -166,7 +166,7 @@ function UploadPageContent() {
       setDefinition(extractedContent); // Set directly in textarea
       setExtractionMethod(data.method || "pdf-text");
       setExtractionConfidence(data.confidence);
-      setUploadedFileName(fileToUpload.name);
+      // setUploadedFileName(fileToUpload.name); // Unused
       setUploadedFile(fileToUpload);
 
       console.log("UploadPage: Text extracted and set in definition field");
@@ -189,7 +189,7 @@ function UploadPageContent() {
 
   function handleRemoveFile() {
     setUploadedFile(null);
-    setUploadedFileName("");
+    // setUploadedFileName(""); // Unused
     setExtractedText("");
     setDefinition("");
     setError(null);
@@ -442,7 +442,16 @@ function UploadPageContent() {
 export default function UploadPage() {
   return (
     <ProtectedRoute>
-      <UploadPageContent />
+      <Suspense
+        fallback={
+          <div className="space-y-6">
+            <h1 className="text-2xl font-semibold">Upload</h1>
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          </div>
+        }
+      >
+        <UploadPageContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }
