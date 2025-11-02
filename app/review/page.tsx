@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { nextReviewCard } from "@/lib/mock-data";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
 
@@ -25,6 +31,9 @@ interface Card {
 export default function ReviewPage() {
   const [cards, setCards] = useState<Card[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [sources, setSources] = useState<string[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
+  const [isLoadingSources, setIsLoadingSources] = useState(false);
 
   const [hoveredSide, setHoveredSide] = useState<"left" | "right" | null>(null);
   const [isHolding, setIsHolding] = useState(false);
@@ -34,43 +43,92 @@ export default function ReviewPage() {
   const [holdTimer, setHoldTimer] = useState<NodeJS.Timeout | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
+  // Define fetchReviewCard using useCallback to avoid dependency issues
+  const fetchReviewCard = useCallback(
+    async (source: string | null): Promise<Card | null> => {
+      try {
+        const url = source
+          ? `/api/review?source=${encodeURIComponent(source)}`
+          : "/api/review";
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.card;
+      } catch (error) {
+        console.error("Failed to fetch review card:", error);
+        return null;
+      }
+    },
+    []
+  );
+
+  // Load sources on mount
+  useEffect(() => {
+    async function loadSources() {
+      setIsLoadingSources(true);
+      try {
+        const res = await fetch("/api/review/sources");
+        if (res.ok) {
+          const data = await res.json();
+          setSources(data.sources || []);
+        }
+      } catch (error) {
+        console.error("Failed to load sources:", error);
+      } finally {
+        setIsLoadingSources(false);
+      }
+    }
+    loadSources();
+  }, []);
+
   // Initialize cards on client side only to prevent hydration mismatch
   useEffect(() => {
-    if (!isInitialized) {
-      const first = nextReviewCard();
-      const second = nextReviewCard();
-      const third = nextReviewCard();
-      const initialCards = [first, second, third]
-        .filter(Boolean)
-        .map((x, i) => ({
-          id: `${x!.candidate.id}-${i}`,
-          text: x!.candidate.text,
-          term: x!.term.term,
-          source: x!.candidate.source,
-          slug: x!.term.slug,
-        }));
-      setCards(initialCards);
+    async function loadInitialCards() {
+      if (isInitialized) return;
+      const cardPromises = [
+        fetchReviewCard(null),
+        fetchReviewCard(null),
+        fetchReviewCard(null),
+      ];
+      const initialCards = await Promise.all(cardPromises);
+      setCards(initialCards.filter((card): card is Card => card !== null));
       setIsInitialized(true);
     }
-  }, [isInitialized]);
+    loadInitialCards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  function vote(direction: "down" | "up") {
-    setCards((prev) => {
-      const rest = prev.slice(1);
-      const refill = nextReviewCard();
-      if (refill) {
-        rest.push({
-          id: `${refill.candidate.id}-${Date.now()}`,
-          text: refill.candidate.text,
-          term: refill.term.term,
-          source: refill.candidate.source,
-          slug: refill.term.slug,
+  // Reload cards when source filter changes
+  useEffect(() => {
+    if (!isInitialized) return;
+    async function reloadCards() {
+      const cardPromises = [
+        fetchReviewCard(selectedSource),
+        fetchReviewCard(selectedSource),
+        fetchReviewCard(selectedSource),
+      ];
+      const newCards = await Promise.all(cardPromises);
+      setCards(newCards.filter((card): card is Card => card !== null));
+    }
+    reloadCards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSource, isInitialized]);
+
+  const vote = useCallback(
+    (direction: "down" | "up") => {
+      setCards((prev) => {
+        const rest = prev.slice(1);
+        fetchReviewCard(selectedSource).then((newCard) => {
+          if (newCard) {
+            setCards((currentCards) => [...currentCards, newCard]);
+          }
         });
-      }
-      return rest;
-    });
-    console.log("vote", direction);
-  }
+        return rest;
+      });
+      console.log("vote", direction);
+    },
+    [fetchReviewCard, selectedSource]
+  );
 
   function handleCardClick(event: React.MouseEvent<HTMLDivElement>) {
     if (isHolding) return; // Prevent voting when holding
@@ -122,23 +180,18 @@ export default function ReviewPage() {
     }
   }
 
-  function skip() {
+  const skip = useCallback(() => {
     setCards((prev) => {
       const rest = prev.slice(1);
-      const refill = nextReviewCard();
-      if (refill) {
-        rest.push({
-          id: `${refill.candidate.id}-${Date.now()}`,
-          text: refill.candidate.text,
-          term: refill.term.term,
-          source: refill.candidate.source,
-          slug: refill.term.slug,
-        });
-      }
+      fetchReviewCard(selectedSource).then((newCard) => {
+        if (newCard) {
+          setCards((currentCards) => [...currentCards, newCard]);
+        }
+      });
       return rest;
     });
     console.log("skip");
-  }
+  }, [fetchReviewCard, selectedSource]);
 
   function handleFlagConfirm() {
     setShowFlagDialog(false);
@@ -192,17 +245,49 @@ export default function ReviewPage() {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
     };
-  }, [holdTimer, isHolding]);
+  }, [holdTimer, isHolding, vote, skip]);
 
   const current = cards[0];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">Review</h1>
-      <p className="text-sm text-muted-foreground">
-        Use ← → to vote, Space (hold) to flag, ↑ to skip. You can also click
-        left/right sides of the card.
-      </p>
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold">Review</h1>
+          <p className="text-sm text-muted-foreground">
+            Use ← → to vote, Space (hold) to flag, ↑ to skip. You can also click
+            left/right sides of the card.
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" disabled={isLoadingSources}>
+              {selectedSource ? `Source: ${selectedSource}` : "All Sources"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="max-h-[400px] overflow-y-auto"
+          >
+            <DropdownMenuItem
+              onClick={() => setSelectedSource(null)}
+              className={!selectedSource ? "bg-accent" : ""}
+            >
+              All Sources
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            {sources.map((source) => (
+              <DropdownMenuItem
+                key={source}
+                onClick={() => setSelectedSource(source)}
+                className={selectedSource === source ? "bg-accent" : ""}
+              >
+                {source}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
       {!isInitialized ? (
         <div className="space-y-4">
           <div className="rounded-lg border p-6 min-h-40 flex items-center justify-center text-lg">
