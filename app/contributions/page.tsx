@@ -2,9 +2,10 @@
 
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/lib/auth/context";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,9 +41,27 @@ function ContributionsPageContent() {
 
   interface ContributionsGrouped {
     draft: ContributionItem[];
+    pending?: ContributionItem[];
     published: ContributionItem[];
     rejected: ContributionItem[];
     comments?: CommentItem[];
+  }
+
+  interface SourceMetadata {
+    title: string;
+    author?: string | null;
+    year?: string | null;
+    publisher?: string | null;
+    isbn?: string | null;
+  }
+
+  interface SourceCard {
+    title: string;
+    count: number;
+    latestUpdatedAt: string;
+    latestUpdatedAtMs: number;
+    preview: string;
+    latestTerm: string | null;
   }
 
   const [data, setData] = useState<ContributionsGrouped | null>(null);
@@ -69,9 +88,13 @@ function ContributionsPageContent() {
     Array<{ date: string; value: number }>
   >([]);
   const [activity, setActivity] = useState<Record<string, number>>({});
+  const [sourceMetadata, setSourceMetadata] = useState<
+    Record<string, SourceMetadata>
+  >({});
+  const [isSourceMetaLoading, setIsSourceMetaLoading] = useState(false);
   const [contribTab, setContribTab] = useState<
-    "published" | "drafts" | "comments"
-  >("published");
+    "sources" | "published" | "drafts" | "comments"
+  >("sources");
 
   // Edit dialog state
   const [editingContribution, setEditingContribution] =
@@ -169,6 +192,101 @@ function ContributionsPageContent() {
     }
     setActivity(counts);
   }, [data]);
+
+  function summarizeText(text: string, maxLength = 160) {
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength).trimEnd()}...`;
+  }
+
+  const sourceCards = useMemo<SourceCard[]>(() => {
+    if (!data) return [];
+    const allItems: ContributionItem[] = [
+      ...(data.published || []),
+      ...(data.draft || []),
+      ...(data.rejected || []),
+      ...(data.pending || []),
+    ];
+    const grouped = new Map<string, SourceCard>();
+
+    for (const item of allItems) {
+      const title = item.source?.trim();
+      if (!title) continue;
+      const updatedAtMs = new Date(item.updatedAt).getTime();
+      const existing = grouped.get(title);
+      if (!existing) {
+        grouped.set(title, {
+          title,
+          count: 1,
+          latestUpdatedAt: item.updatedAt,
+          latestUpdatedAtMs: updatedAtMs,
+          preview: summarizeText(item.text),
+          latestTerm: item.term ?? null,
+        });
+        continue;
+      }
+
+      existing.count += 1;
+      if (updatedAtMs > existing.latestUpdatedAtMs) {
+        existing.latestUpdatedAtMs = updatedAtMs;
+        existing.latestUpdatedAt = item.updatedAt;
+        existing.preview = summarizeText(item.text);
+        existing.latestTerm = item.term ?? null;
+      }
+    }
+
+    return Array.from(grouped.values()).sort(
+      (a, b) => b.latestUpdatedAtMs - a.latestUpdatedAtMs
+    );
+  }, [data]);
+
+  useEffect(() => {
+    if (sourceCards.length === 0) {
+      setSourceMetadata({});
+      return;
+    }
+
+    let aborted = false;
+    async function loadSourceMetadata() {
+      setIsSourceMetaLoading(true);
+      try {
+        const res = await fetch("/api/sources/lookup", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            titles: sourceCards.map((card) => card.title),
+          }),
+        });
+
+        if (!res.ok) {
+          if (!aborted) setSourceMetadata({});
+          return;
+        }
+
+        const json = await res.json();
+        if (aborted) return;
+        const mapped = (json.sources ?? []).reduce(
+          (acc: Record<string, SourceMetadata>, item: SourceMetadata) => {
+            acc[item.title] = item;
+            return acc;
+          },
+          {}
+        );
+        setSourceMetadata(mapped);
+      } catch (error) {
+        if (!aborted) {
+          console.error("Failed to load source metadata:", error);
+          setSourceMetadata({});
+        }
+      } finally {
+        if (!aborted) setIsSourceMetaLoading(false);
+      }
+    }
+
+    loadSourceMetadata();
+    return () => {
+      aborted = true;
+    };
+  }, [sourceCards]);
 
   function onProfileChange<K extends keyof ProfileFormState>(
     key: K,
@@ -597,6 +715,11 @@ function ContributionsPageContent() {
             {(
               [
                 {
+                  key: "sources",
+                  label: "Sources",
+                  count: sourceCards.length,
+                },
+                {
                   key: "published",
                   label: "Published",
                   count: data?.published.length ?? 0,
@@ -631,136 +754,223 @@ function ContributionsPageContent() {
             ))}
           </div>
 
-          <ul className="divide-y rounded-md border">
-            {contribTab === "published" && (
-              <>
-                {data && data.published.length > 0 ? (
-                  data.published.map((item) => (
-                    <li key={item.id} className="p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-sm">{item.text}</p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            {item.slug && (
+          {contribTab === "sources" ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  Sources you have contributed to.
+                </p>
+                <Link href="/sources/new">
+                  <Button variant="outline" size="sm">
+                    New source
+                  </Button>
+                </Link>
+              </div>
+              {sourceCards.length === 0 ? (
+                <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                  No sources yet. Upload a definition or add a source metadata
+                  entry to get started.
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  {sourceCards.map((card) => {
+                    const meta = sourceMetadata[card.title];
+                    const metaLine = [
+                      meta?.author,
+                      meta?.year,
+                      meta?.publisher,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    const encodedTitle = encodeURIComponent(card.title);
+
+                    return (
+                      <Card key={card.title} className="flex h-full flex-col">
+                        <CardHeader className="space-y-2">
+                          <div className="flex items-start justify-between gap-3">
+                            <CardTitle className="text-base">
                               <Link
-                                href={`/term/${item.slug}`}
+                                href={`/sources/${encodedTitle}`}
                                 className="hover:underline"
                               >
-                                View term
+                                {card.title}
                               </Link>
-                            )}
-                            <span>•</span>
+                            </CardTitle>
+                            <Badge variant="secondary">{card.count}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {metaLine ||
+                              (isSourceMetaLoading
+                                ? "Loading metadata..."
+                                : "No metadata yet")}
+                          </p>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                          <p className="text-sm text-muted-foreground">
+                            {card.latestTerm ? `${card.latestTerm}: ` : ""}
+                            {card.preview}
+                          </p>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
                             <span>
-                              {new Date(item.createdAt).toLocaleDateString()}
+                              Updated{" "}
+                              {new Date(
+                                card.latestUpdatedAt
+                              ).toLocaleDateString()}
                             </span>
+                            <Link
+                              href={`/sources/${encodedTitle}`}
+                              className="hover:underline"
+                            >
+                              View source
+                            </Link>
+                          </div>
+                          {!meta && (
+                            <Link
+                              href={`/sources/new?title=${encodedTitle}`}
+                              className="text-xs text-muted-foreground underline"
+                            >
+                              Add metadata
+                            </Link>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <ul className="divide-y rounded-md border">
+              {contribTab === "published" && (
+                <>
+                  {data && data.published.length > 0 ? (
+                    data.published.map((item) => (
+                      <li key={item.id} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm">{item.text}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              {item.slug && (
+                                <Link
+                                  href={`/term/${item.slug}`}
+                                  className="hover:underline"
+                                >
+                                  View term
+                                </Link>
+                              )}
+                              <span>•</span>
+                              <span>
+                                {new Date(item.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditContribution(item)}
+                              className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
+                              title="Edit contribution"
+                            >
+                              Edit
+                            </button>
+                            <span className="text-muted-foreground">•</span>
+                            <button
+                              onClick={() => handleDeleteContribution(item)}
+                              className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
+                              title="Delete contribution"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditContribution(item)}
-                            className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
-                            title="Edit contribution"
-                          >
-                            Edit
-                          </button>
-                          <span className="text-muted-foreground">•</span>
-                          <button
-                            onClick={() => handleDeleteContribution(item)}
-                            className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
-                            title="Delete contribution"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="p-3 text-sm text-muted-foreground">
+                      No published items
                     </li>
-                  ))
-                ) : (
-                  <li className="p-3 text-sm text-muted-foreground">
-                    No published items
-                  </li>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            {contribTab === "drafts" && (
-              <>
-                {data && Array.isArray(data.draft) && data.draft.length > 0 ? (
-                  data.draft.map((item) => (
-                    <li key={item.id} className="p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <p className="line-clamp-2 text-sm">{item.text}</p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>
-                              {new Date(item.createdAt).toLocaleDateString()}
-                            </span>
+              {contribTab === "drafts" && (
+                <>
+                  {data && Array.isArray(data.draft) && data.draft.length > 0 ? (
+                    data.draft.map((item) => (
+                      <li key={item.id} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="line-clamp-2 text-sm">{item.text}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              <span>
+                                {new Date(item.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditContribution(item)}
+                              className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
+                              title="Edit contribution"
+                            >
+                              Edit
+                            </button>
+                            <span className="text-muted-foreground">•</span>
+                            <button
+                              onClick={() => handleDeleteContribution(item)}
+                              className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
+                              title="Delete contribution"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleEditContribution(item)}
-                            className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
-                            title="Edit contribution"
-                          >
-                            Edit
-                          </button>
-                          <span className="text-muted-foreground">•</span>
-                          <button
-                            onClick={() => handleDeleteContribution(item)}
-                            className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
-                            title="Delete contribution"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="p-3 text-sm text-muted-foreground">
+                      No drafts
                     </li>
-                  ))
-                ) : (
-                  <li className="p-3 text-sm text-muted-foreground">
-                    No drafts
-                  </li>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            {contribTab === "comments" && (
-              <>
-                {data &&
-                Array.isArray(data.comments) &&
-                data.comments.length > 0 ? (
-                  data.comments.map((c) => (
-                    <li key={c.id} className="p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 text-sm">{c.body}</p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            {c.slug && (
-                              <Link
-                                href={`/term/${c.slug}`}
-                                className="hover:underline"
-                              >
-                                View term
-                              </Link>
-                            )}
-                            <span>•</span>
-                            <span>
-                              {new Date(c.createdAt).toLocaleDateString()}
-                            </span>
+              {contribTab === "comments" && (
+                <>
+                  {data &&
+                  Array.isArray(data.comments) &&
+                  data.comments.length > 0 ? (
+                    data.comments.map((c) => (
+                      <li key={c.id} className="p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="line-clamp-2 text-sm">{c.body}</p>
+                            <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                              {c.slug && (
+                                <Link
+                                  href={`/term/${c.slug}`}
+                                  className="hover:underline"
+                                >
+                                  View term
+                                </Link>
+                              )}
+                              <span>•</span>
+                              <span>
+                                {new Date(c.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="p-3 text-sm text-muted-foreground">
+                      No comments
                     </li>
-                  ))
-                ) : (
-                  <li className="p-3 text-sm text-muted-foreground">
-                    No comments
-                  </li>
-                )}
-              </>
-            )}
-          </ul>
+                  )}
+                </>
+              )}
+            </ul>
+          )}
         </div>
       )}
 

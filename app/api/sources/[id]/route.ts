@@ -1,0 +1,79 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getSupabaseServerClient } from "@/lib/supabase/server";
+
+function normalizeOptional(value: unknown) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export async function PATCH(
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+    const payload = (await req.json().catch(() => ({}))) as {
+      author?: string;
+      year?: string;
+      publisher?: string;
+      isbn?: string;
+    };
+
+    const supabase = await getSupabaseServerClient();
+    const { data: userResp } = await supabase.auth.getUser();
+    const user = userResp?.user;
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: existing, error: fetchError } = await supabase
+      .from("sources")
+      .select("id, created_by")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !existing) {
+      return NextResponse.json({ error: "Source not found" }, { status: 404 });
+    }
+
+    if (existing.created_by && existing.created_by !== user.id) {
+      return NextResponse.json(
+        { error: "You can only edit sources you created" },
+        { status: 403 }
+      );
+    }
+
+    const updatePayload = {
+      author: normalizeOptional(payload.author),
+      year: normalizeOptional(payload.year),
+      publisher: normalizeOptional(payload.publisher),
+      isbn: normalizeOptional(payload.isbn),
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("sources")
+      .update(updatePayload)
+      .eq("id", id);
+
+    if (error) {
+      console.error("Supabase source update error:", error);
+      return NextResponse.json(
+        { error: "Failed to update source" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Sources PATCH error:", error);
+    return NextResponse.json(
+      { error: "Failed to update source" },
+      { status: 500 }
+    );
+  }
+}
+
+export const runtime = "nodejs";
