@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase
       .from("sources")
       .select(
-        "id, title, author, year, publisher, isbn, created_by, created_at, updated_at"
+        "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
       )
       .in("title", uniqueTitles);
 

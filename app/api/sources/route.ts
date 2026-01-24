@@ -7,6 +7,8 @@ type SourcePayload = {
   year?: string;
   publisher?: string;
   isbn?: string;
+  coverUrl?: string;
+  openLibraryKey?: string;
 };
 
 function normalizeOptional(value: unknown) {
@@ -32,7 +34,7 @@ export async function GET(req: NextRequest) {
       const { data, error } = await supabase
         .from("sources")
         .select(
-          "id, title, author, year, publisher, isbn, created_by, created_at, updated_at"
+          "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
         )
         .eq("id", id)
         .maybeSingle();
@@ -52,7 +54,7 @@ export async function GET(req: NextRequest) {
       const { data, error } = await supabase
         .from("sources")
         .select(
-          "id, title, author, year, publisher, isbn, created_by, created_at, updated_at"
+          "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
         )
         .eq("title", title)
         .maybeSingle();
@@ -71,7 +73,7 @@ export async function GET(req: NextRequest) {
     let query = supabase
       .from("sources")
       .select(
-        "id, title, author, year, publisher, isbn, created_by, created_at, updated_at"
+        "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
       );
 
     if (q) {
@@ -120,12 +122,34 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const { data: existing, error: existingError } = await supabase
+      .from("sources")
+      .select(
+        "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
+      )
+      .eq("title", title)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error("Supabase source lookup error:", existingError);
+      return NextResponse.json(
+        { error: "Failed to create source" },
+        { status: 500 }
+      );
+    }
+
+    if (existing) {
+      return NextResponse.json({ source: existing }, { status: 200 });
+    }
+
     const payload = {
       title,
       author: normalizeOptional(body.author),
       year: normalizeOptional(body.year),
       publisher: normalizeOptional(body.publisher),
       isbn: normalizeOptional(body.isbn),
+      cover_url: normalizeOptional(body.coverUrl),
+      openlibrary_key: normalizeOptional(body.openLibraryKey),
       created_by: user.id,
     };
 
@@ -133,12 +157,23 @@ export async function POST(req: NextRequest) {
       .from("sources")
       .insert(payload)
       .select(
-        "id, title, author, year, publisher, isbn, created_by, created_at, updated_at"
+        "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
       )
       .single();
 
     if (error) {
       console.error("Supabase source create error:", error);
+      // If another user created it concurrently, fetch and return it.
+      const { data: concurrent } = await supabase
+        .from("sources")
+        .select(
+          "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_by, created_at, updated_at"
+        )
+        .eq("title", title)
+        .maybeSingle();
+      if (concurrent) {
+        return NextResponse.json({ source: concurrent }, { status: 200 });
+      }
       return NextResponse.json(
         { error: error.message || "Failed to create source" },
         { status: 500 }

@@ -22,6 +22,8 @@ Contributions should feel like a workspace. The primary organizing unit becomes 
   - `year` (text, optional)
   - `publisher` (text, optional)
   - `isbn` (text, optional)
+  - `cover_url` (text, optional; scraped cover link)
+  - `openlibrary_key` (text, optional; upstream identifier)
   - `created_by` (uuid, optional)
   - `created_at`, `updated_at` (timestamps)
 - Existing `definitions.source` remains the join key for now.
@@ -35,6 +37,7 @@ Contributions should feel like a workspace. The primary organizing unit becomes 
 - `/sources/new`
   - Form to create source metadata (title required, others optional).
   - Requires sign-in.
+  - Optional: auto-fill via Open Library (ISBN preferred).
 - `/sources/[source]`
   - `source` is the URL-encoded source title string.
   - Loads metadata (if present) and lists all definitions whose `definitions.source` matches.
@@ -47,6 +50,8 @@ Contributions should feel like a workspace. The primary organizing unit becomes 
   - `limit=`: cap results (default 50).
 - `POST /api/sources`
   - Create a new source metadata record. Requires auth.
+- `POST /api/sources/enrich`
+  - Fetch suggested metadata from Open Library using ISBN or title/author.
 - `POST /api/sources/lookup`
   - Body: `{ "titles": string[] }`.
   - Returns metadata for any matching titles.

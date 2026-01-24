@@ -18,6 +18,8 @@ export async function PATCH(
       year?: string;
       publisher?: string;
       isbn?: string;
+      coverUrl?: string;
+      openLibraryKey?: string;
     };
 
     const supabase = await getSupabaseServerClient();
@@ -28,35 +30,22 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: existing, error: fetchError } = await supabase
-      .from("sources")
-      .select("id, created_by")
-      .eq("id", id)
-      .single();
-
-    if (fetchError || !existing) {
-      return NextResponse.json({ error: "Source not found" }, { status: 404 });
-    }
-
-    if (existing.created_by && existing.created_by !== user.id) {
-      return NextResponse.json(
-        { error: "You can only edit sources you created" },
-        { status: 403 }
-      );
-    }
-
     const updatePayload = {
       author: normalizeOptional(payload.author),
       year: normalizeOptional(payload.year),
       publisher: normalizeOptional(payload.publisher),
       isbn: normalizeOptional(payload.isbn),
+      cover_url: normalizeOptional(payload.coverUrl),
+      openlibrary_key: normalizeOptional(payload.openLibraryKey),
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("sources")
       .update(updatePayload)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
 
     if (error) {
       console.error("Supabase source update error:", error);
@@ -64,6 +53,10 @@ export async function PATCH(
         { error: "Failed to update source" },
         { status: 500 }
       );
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: "Source not found" }, { status: 404 });
     }
 
     return NextResponse.json({ ok: true });

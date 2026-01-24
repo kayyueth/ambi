@@ -24,10 +24,15 @@ function NewSourceContent() {
   const [year, setYear] = useState("");
   const [publisher, setPublisher] = useState("");
   const [isbn, setIsbn] = useState("");
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [openLibraryKey, setOpenLibraryKey] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [sourceId, setSourceId] = useState(initialId);
   const [error, setError] = useState<string | null>(null);
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState<string | null>(null);
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
 
   useEffect(() => {
     setTitle(initialTitle);
@@ -64,6 +69,8 @@ function NewSourceContent() {
         setYear(data.source.year ?? "");
         setPublisher(data.source.publisher ?? "");
         setIsbn(data.source.isbn ?? "");
+        setCoverUrl(data.source.cover_url ?? null);
+        setOpenLibraryKey(data.source.openlibrary_key ?? null);
       } catch (err) {
         if (!aborted) {
           setError((err as Error).message);
@@ -95,13 +102,15 @@ function NewSourceContent() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             isEditing
-              ? { author, year, publisher, isbn }
+              ? { author, year, publisher, isbn, coverUrl, openLibraryKey }
               : {
                   title: trimmedTitle,
                   author,
                   year,
                   publisher,
                   isbn,
+                  coverUrl,
+                  openLibraryKey,
                 }
           ),
         }
@@ -120,6 +129,62 @@ function NewSourceContent() {
     }
   }
 
+  async function handleEnrich() {
+    if (isEnriching) return;
+
+    setIsEnriching(true);
+    setEnrichError(null);
+    try {
+      const res = await fetch("/api/sources/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, author, isbn }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to enrich source.");
+      }
+
+      const enriched = data?.enriched ?? {};
+
+      function fill(
+        currentValue: string,
+        nextValue: unknown,
+        setter: (v: string) => void
+      ) {
+        const next = typeof nextValue === "string" ? nextValue.trim() : "";
+        if (!next) return;
+        if (overwriteExisting || !currentValue.trim()) setter(next);
+      }
+
+      if (!isEditing) {
+        fill(title, enriched.title, setTitle);
+      }
+      fill(author, enriched.author, setAuthor);
+      fill(year, enriched.year, setYear);
+      fill(publisher, enriched.publisher, setPublisher);
+      fill(isbn, enriched.isbn, setIsbn);
+
+      const nextCoverUrl =
+        typeof enriched.coverUrl === "string" ? enriched.coverUrl.trim() : "";
+      if (nextCoverUrl && (overwriteExisting || !coverUrl)) {
+        setCoverUrl(nextCoverUrl);
+      }
+
+      const nextKey =
+        typeof enriched.openLibraryKey === "string"
+          ? enriched.openLibraryKey.trim()
+          : "";
+      if (nextKey && (overwriteExisting || !openLibraryKey)) {
+        setOpenLibraryKey(nextKey);
+      }
+    } catch (err) {
+      setEnrichError((err as Error).message);
+    } finally {
+      setIsEnriching(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl py-10">
       <Card>
@@ -133,6 +198,59 @@ function NewSourceContent() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm">
+                <input
+                  id="overwriteExisting"
+                  type="checkbox"
+                  className="h-4 w-4"
+                  checked={overwriteExisting}
+                  onChange={(e) => setOverwriteExisting(e.target.checked)}
+                  disabled={isSubmitting || isEnriching}
+                />
+                <label
+                  htmlFor="overwriteExisting"
+                  className="text-muted-foreground"
+                >
+                  Overwrite existing fields
+                </label>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleEnrich}
+                disabled={isSubmitting || isEnriching}
+              >
+                {isEnriching ? "Fetching..." : "Auto-fill (Open Library)"}
+              </Button>
+            </div>
+
+            {enrichError && (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {enrichError}
+              </div>
+            )}
+
+            {coverUrl && (
+              <div className="rounded-md border p-3">
+                <div className="flex items-start gap-3">
+                  <img
+                    src={coverUrl}
+                    alt="Cover preview"
+                    className="h-24 w-16 rounded object-cover border"
+                    onError={() => setCoverUrl(null)}
+                  />
+                  <div className="space-y-1 text-sm">
+                    <div className="font-medium">Cover</div>
+                    <div className="text-muted-foreground">
+                      From Open Library.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-2">
               <label htmlFor="title" className="text-sm font-medium">
                 Title *
@@ -187,13 +305,13 @@ function NewSourceContent() {
                 <label htmlFor="isbn" className="text-sm font-medium">
                   ISBN
                 </label>
-                <Input
-                  id="isbn"
-                  value={isbn}
-                  onChange={(e) => setIsbn(e.target.value)}
-                  placeholder="e.g. 9780521291644"
-                />
-              </div>
+              <Input
+                id="isbn"
+                value={isbn}
+                onChange={(e) => setIsbn(e.target.value)}
+                placeholder="e.g. 9780521291644"
+              />
+            </div>
             </div>
 
             {error && (

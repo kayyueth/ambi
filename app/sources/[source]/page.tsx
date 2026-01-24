@@ -17,6 +17,8 @@ interface SourceMetadata {
   year: string | null;
   publisher: string | null;
   isbn: string | null;
+  cover_url?: string | null;
+  openlibrary_key?: string | null;
 }
 
 interface SourceTerm {
@@ -150,21 +152,42 @@ export default function SourceDetailPage(props: PageProps) {
         </div>
       )}
 
-      {metadata && metadataRows.length > 0 ? (
+      {metadata ? (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Source metadata</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            {metadataRows.map((row) => (
-              <div
-                key={row.label}
-                className="flex items-center justify-between gap-4"
-              >
-                <span className="text-muted-foreground">{row.label}</span>
-                <span className="text-foreground">{row.value}</span>
+            {metadata.cover_url && (
+              <div className="flex items-start gap-3 pb-2">
+                <img
+                  src={metadata.cover_url}
+                  alt="Cover"
+                  className="h-28 w-20 rounded border object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = "none";
+                  }}
+                />
+                <div className="text-xs text-muted-foreground">
+                  Cover image (if available).
+                </div>
               </div>
-            ))}
+            )}
+            {metadataRows.length > 0 ? (
+              metadataRows.map((row) => (
+                <div
+                  key={row.label}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <span className="text-muted-foreground">{row.label}</span>
+                  <span className="text-foreground">{row.value}</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Metadata is currently empty.
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

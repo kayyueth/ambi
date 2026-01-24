@@ -48,11 +48,14 @@ function ContributionsPageContent() {
   }
 
   interface SourceMetadata {
+    id: string;
     title: string;
     author?: string | null;
     year?: string | null;
     publisher?: string | null;
     isbn?: string | null;
+    cover_url?: string | null;
+    openlibrary_key?: string | null;
   }
 
   interface SourceCard {
@@ -788,14 +791,28 @@ function ContributionsPageContent() {
                       <Card key={card.title} className="flex h-full flex-col">
                         <CardHeader className="space-y-2">
                           <div className="flex items-start justify-between gap-3">
-                            <CardTitle className="text-base">
-                              <Link
-                                href={`/sources/${encodedTitle}`}
-                                className="hover:underline"
-                              >
-                                {card.title}
-                              </Link>
-                            </CardTitle>
+                            <div className="flex items-start gap-3 min-w-0">
+                              {meta?.cover_url && (
+                                <img
+                                  src={meta.cover_url}
+                                  alt="Cover"
+                                  className="h-14 w-10 rounded border object-cover flex-shrink-0"
+                                  onError={(e) => {
+                                    (
+                                      e.currentTarget as HTMLImageElement
+                                    ).style.display = "none";
+                                  }}
+                                />
+                              )}
+                              <CardTitle className="text-base min-w-0">
+                                <Link
+                                  href={`/sources/${encodedTitle}`}
+                                  className="hover:underline break-words"
+                                >
+                                  {card.title}
+                                </Link>
+                              </CardTitle>
+                            </div>
                             <Badge variant="secondary">{card.count}</Badge>
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -824,14 +841,16 @@ function ContributionsPageContent() {
                               View source
                             </Link>
                           </div>
-                          {!meta && (
-                            <Link
-                              href={`/sources/new?title=${encodedTitle}`}
-                              className="text-xs text-muted-foreground underline"
-                            >
-                              Add metadata
-                            </Link>
-                          )}
+                          <Link
+                            href={
+                              meta?.id
+                                ? `/sources/new?id=${encodeURIComponent(meta.id)}`
+                                : `/sources/new?title=${encodedTitle}`
+                            }
+                            className="text-xs text-muted-foreground underline"
+                          >
+                            {meta ? "Edit metadata" : "Add metadata"}
+                          </Link>
                         </CardContent>
                       </Card>
                     );
