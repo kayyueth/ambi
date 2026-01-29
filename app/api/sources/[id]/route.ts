@@ -56,6 +56,24 @@ export async function PATCH(
     }
 
     if (!data) {
+      const { data: existing, error: existingError } = await supabase
+        .from("sources")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Supabase source lookup error:", existingError);
+        return NextResponse.json(
+          { error: "Failed to update source" },
+          { status: 500 }
+        );
+      }
+
+      if (existing) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
       return NextResponse.json({ error: "Source not found" }, { status: 404 });
     }
 
