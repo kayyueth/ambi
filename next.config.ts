@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "covers.openlibrary.org",
+      },
+    ],
+  },
   serverExternalPackages: ["pdf-parse", "tesseract.js"],
   webpack: (config, { isServer }) => {
     if (isServer) {

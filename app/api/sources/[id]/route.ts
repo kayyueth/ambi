@@ -87,4 +87,66 @@ export async function PATCH(
   }
 }
 
+export async function DELETE(
+  _req: NextRequest,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    const supabase = await getSupabaseServerClient();
+    const { data: userResp } = await supabase.auth.getUser();
+    const user = userResp?.user;
+
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data, error } = await supabase
+      .from("sources")
+      .delete()
+      .eq("id", id)
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      console.error("Supabase source delete error:", error);
+      return NextResponse.json(
+        { error: "Failed to delete source" },
+        { status: 500 }
+      );
+    }
+
+    if (!data) {
+      const { data: existing, error: existingError } = await supabase
+        .from("sources")
+        .select("id")
+        .eq("id", id)
+        .maybeSingle();
+
+      if (existingError) {
+        console.error("Supabase source lookup error:", existingError);
+        return NextResponse.json(
+          { error: "Failed to delete source" },
+          { status: 500 }
+        );
+      }
+
+      if (existing) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+
+      return NextResponse.json({ error: "Source not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Sources DELETE error:", error);
+    return NextResponse.json(
+      { error: "Failed to delete source" },
+      { status: 500 }
+    );
+  }
+}
+
 export const runtime = "nodejs";

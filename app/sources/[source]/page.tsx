@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,12 @@ function summarize(text: string, maxLength = 200) {
   return `${text.slice(0, maxLength).trimEnd()}...`;
 }
 
+function coverFallback(title: string) {
+  const trimmed = title.trim();
+  if (!trimmed) return "S";
+  return trimmed.slice(0, 1).toUpperCase();
+}
+
 function safeDecode(value: string) {
   try {
     return decodeURIComponent(value);
@@ -62,20 +69,24 @@ export default function SourceDetailPage(props: PageProps) {
   }, [props.params]);
 
   useEffect(() => {
-    if (!sourceTitle) return;
+    const title = sourceTitle;
+    if (!title) return;
     let aborted = false;
 
-    async function load() {
+    async function load(sourceTitleValue: string) {
       setIsLoading(true);
       setError(null);
       try {
         const [metaRes, termsRes] = await Promise.all([
-          fetch(`/api/sources?title=${encodeURIComponent(sourceTitle)}`, {
+          fetch(`/api/sources?title=${encodeURIComponent(sourceTitleValue)}`, {
             cache: "no-store",
           }),
-          fetch(`/api/sources/terms?source=${encodeURIComponent(sourceTitle)}`, {
+          fetch(
+            `/api/sources/terms?source=${encodeURIComponent(sourceTitleValue)}`,
+            {
             cache: "no-store",
-          }),
+            }
+          ),
         ]);
 
         if (!aborted) {
@@ -104,7 +115,7 @@ export default function SourceDetailPage(props: PageProps) {
       }
     }
 
-    load();
+    load(title);
     return () => {
       aborted = true;
     };
@@ -160,14 +171,18 @@ export default function SourceDetailPage(props: PageProps) {
           <CardContent className="space-y-2 text-sm">
             {metadata.cover_url && (
               <div className="flex items-start gap-3 pb-2">
-                <img
-                  src={metadata.cover_url}
-                  alt="Cover"
-                  className="h-28 w-20 rounded border object-cover"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).style.display = "none";
-                  }}
-                />
+                <div className="relative h-28 w-20 overflow-hidden rounded border bg-muted">
+                  <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-muted-foreground">
+                    {coverFallback(metadata.title)}
+                  </div>
+                  <Image
+                    src={metadata.cover_url}
+                    alt="Cover"
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                </div>
                 <div className="text-xs text-muted-foreground">
                   Cover image (if available).
                 </div>

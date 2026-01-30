@@ -4,6 +4,7 @@ import { ProtectedRoute } from "@/components/auth/protected-route";
 import { useAuth } from "@/lib/auth/context";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -56,6 +57,9 @@ function ContributionsPageContent() {
     isbn?: string | null;
     cover_url?: string | null;
     openlibrary_key?: string | null;
+    created_at?: string | null;
+    updated_at?: string | null;
+    created_by?: string | null;
   }
 
   interface SourceCard {
@@ -95,9 +99,14 @@ function ContributionsPageContent() {
     Record<string, SourceMetadata>
   >({});
   const [isSourceMetaLoading, setIsSourceMetaLoading] = useState(false);
+  const [createdSources, setCreatedSources] = useState<SourceMetadata[]>([]);
+  const [isCreatedSourcesLoading, setIsCreatedSourcesLoading] = useState(false);
   const [contribTab, setContribTab] = useState<
     "sources" | "published" | "drafts" | "comments"
   >("sources");
+  const [selectedSourceTitle, setSelectedSourceTitle] = useState<string | null>(
+    null
+  );
 
   // Edit dialog state
   const [editingContribution, setEditingContribution] =
@@ -157,6 +166,46 @@ function ContributionsPageContent() {
     };
   }, [supabase, user?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCreatedSources() {
+      if (!user?.id) return;
+      setIsCreatedSourcesLoading(true);
+      try {
+        const { data: sources, error } = await supabase
+          .from("sources")
+          .select(
+            "id, title, author, year, publisher, isbn, cover_url, openlibrary_key, created_at, updated_at, created_by"
+          )
+          .eq("created_by", user.id)
+          .order("updated_at", { ascending: false });
+
+        if (!cancelled && !error) {
+          setCreatedSources(
+            (sources ?? []).filter((s) => typeof s.title === "string" && s.title)
+          );
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.error("Failed to load created sources:", e);
+          setCreatedSources([]);
+        }
+      } finally {
+        if (!cancelled) setIsCreatedSourcesLoading(false);
+      }
+    }
+
+    loadCreatedSources();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, user?.id]);
+
+  useEffect(() => {
+    if (!selectedSourceTitle) return;
+    if (contribTab !== "sources") setSelectedSourceTitle(null);
+  }, [contribTab, selectedSourceTitle]);
+
   // compute reputation from contributions (sum of published weights)
   useEffect(() => {
     if (!data) {
@@ -201,14 +250,21 @@ function ContributionsPageContent() {
     return `${text.slice(0, maxLength).trimEnd()}...`;
   }
 
+  function coverFallback(title: string) {
+    const trimmed = title.trim();
+    if (!trimmed) return "S";
+    return trimmed.slice(0, 1).toUpperCase();
+  }
+
   const sourceCards = useMemo<SourceCard[]>(() => {
-    if (!data) return [];
-    const allItems: ContributionItem[] = [
-      ...(data.published || []),
-      ...(data.draft || []),
-      ...(data.rejected || []),
-      ...(data.pending || []),
-    ];
+    const allItems: ContributionItem[] = data
+      ? [
+          ...(data.published || []),
+          ...(data.draft || []),
+          ...(data.rejected || []),
+          ...(data.pending || []),
+        ]
+      : [];
     const grouped = new Map<string, SourceCard>();
 
     for (const item of allItems) {
@@ -237,10 +293,51 @@ function ContributionsPageContent() {
       }
     }
 
+    for (const s of createdSources) {
+      const title = s.title?.trim();
+      if (!title) continue;
+      const updatedAt = s.updated_at || s.created_at || new Date().toISOString();
+      const updatedAtMs = new Date(updatedAt).getTime();
+      const existing = grouped.get(title);
+      if (!existing) {
+        grouped.set(title, {
+          title,
+          count: 0,
+          latestUpdatedAt: updatedAt,
+          latestUpdatedAtMs: updatedAtMs,
+          preview: "",
+          latestTerm: null,
+        });
+        continue;
+      }
+
+      if (updatedAtMs > existing.latestUpdatedAtMs) {
+        existing.latestUpdatedAtMs = updatedAtMs;
+        existing.latestUpdatedAt = updatedAt;
+      }
+    }
+
     return Array.from(grouped.values()).sort(
       (a, b) => b.latestUpdatedAtMs - a.latestUpdatedAtMs
     );
-  }, [data]);
+  }, [data, createdSources]);
+
+  const selectedSourceItems = useMemo(() => {
+    const title = selectedSourceTitle?.trim();
+    if (!title || !data) return [];
+    const all: ContributionItem[] = [
+      ...(data.published || []),
+      ...(data.draft || []),
+      ...(data.rejected || []),
+      ...(data.pending || []),
+    ];
+    return all
+      .filter((item) => (item.source ?? "").trim() === title)
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
+  }, [data, selectedSourceTitle]);
 
   useEffect(() => {
     if (sourceCards.length === 0) {
@@ -758,24 +855,120 @@ function ContributionsPageContent() {
           </div>
 
           {contribTab === "sources" ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-muted-foreground">
-                  Sources you have contributed to.
-                </p>
-                <Link href="/sources/new">
-                  <Button variant="outline" size="sm">
-                    New source
-                  </Button>
-                </Link>
-              </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-muted-foreground">
+                Sources you have contributed to or created metadata for.
+              </p>
+              {isCreatedSourcesLoading && (
+                <p className="text-xs text-muted-foreground">Loading…</p>
+              )}
+              <Link href="/sources/new">
+                <Button variant="outline" size="sm">
+                  New source
+                </Button>
+              </Link>
+            </div>
               {sourceCards.length === 0 ? (
                 <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
                   No sources yet. Upload a definition or add a source metadata
                   entry to get started.
                 </div>
+              ) : selectedSourceTitle ? (
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <button
+                        type="button"
+                        className="text-sm text-muted-foreground hover:text-foreground underline"
+                        onClick={() => setSelectedSourceTitle(null)}
+                      >
+                        Back to sources
+                      </button>
+                      <div className="text-lg font-medium break-words">
+                        {selectedSourceTitle}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={`/upload?source=${encodeURIComponent(
+                          selectedSourceTitle
+                        )}`}
+                      >
+                        <Button size="sm">Add term</Button>
+                      </Link>
+                      <Link
+                        href={`/sources/${encodeURIComponent(
+                          selectedSourceTitle
+                        )}`}
+                      >
+                        <Button variant="outline" size="sm">
+                          Public page
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+
+                  {selectedSourceItems.length === 0 ? (
+                    <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                      No terms yet for this source.
+                    </div>
+                  ) : (
+                    <ul className="divide-y rounded-md border">
+                      {selectedSourceItems.map((item) => (
+                        <li key={item.id} className="p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {item.slug ? (
+                                  <Link
+                                    href={`/term/${item.slug}`}
+                                    className="text-sm font-medium hover:underline"
+                                  >
+                                    {item.term ?? "View term"}
+                                  </Link>
+                                ) : (
+                                  <span className="text-sm font-medium">
+                                    {item.term ?? "Untitled term"}
+                                  </span>
+                                )}
+                                <Badge variant="secondary">{item.status}</Badge>
+                              </div>
+                              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                {item.text}
+                              </p>
+                              <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+                                <span>
+                                  Updated{" "}
+                                  {new Date(item.updatedAt).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleEditContribution(item)}
+                                className="text-sm text-muted-foreground hover:text-foreground focus:outline-none"
+                                title="Edit contribution"
+                              >
+                                Edit
+                              </button>
+                              <span className="text-muted-foreground">•</span>
+                              <button
+                                onClick={() => handleDeleteContribution(item)}
+                                className="text-sm text-red-600 hover:text-red-700 focus:outline-none"
+                                title="Delete contribution"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                   {sourceCards.map((card) => {
                     const meta = sourceMetadata[card.title];
                     const metaLine = [
@@ -788,46 +981,58 @@ function ContributionsPageContent() {
                     const encodedTitle = encodeURIComponent(card.title);
 
                     return (
-                      <Card key={card.title} className="flex h-full flex-col">
-                        <CardHeader className="space-y-2">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex items-start gap-3 min-w-0">
-                              {meta?.cover_url && (
-                                <img
-                                  src={meta.cover_url}
-                                  alt="Cover"
-                                  className="h-14 w-10 rounded border object-cover flex-shrink-0"
-                                  onError={(e) => {
-                                    (
-                                      e.currentTarget as HTMLImageElement
-                                    ).style.display = "none";
-                                  }}
-                                />
-                              )}
-                              <CardTitle className="text-base min-w-0">
-                                <Link
-                                  href={`/sources/${encodedTitle}`}
-                                  className="hover:underline break-words"
-                                >
-                                  {card.title}
-                                </Link>
-                              </CardTitle>
+                      <Card key={card.title} className="overflow-hidden">
+                        <button
+                          type="button"
+                          className="block w-full text-left"
+                          onClick={() => setSelectedSourceTitle(card.title)}
+                        >
+                          <div className="relative aspect-[2/3] w-full bg-muted">
+                            <div className="absolute inset-0 flex h-full w-full items-center justify-center text-4xl font-semibold text-muted-foreground">
+                              {coverFallback(card.title)}
                             </div>
-                            <Badge variant="secondary">{card.count}</Badge>
+                            {meta?.cover_url && (
+                              <Image
+                                src={meta.cover_url}
+                                alt="Cover"
+                                fill
+                                sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 20vw"
+                                className="object-cover"
+                              />
+                            )}
+                            <Badge
+                              variant="secondary"
+                              className="absolute right-2 top-2"
+                            >
+                              {card.count}
+                            </Badge>
                           </div>
+                        </button>
+                        <CardContent className="space-y-2 p-4">
+                          <button
+                            type="button"
+                            className="font-medium hover:underline break-words text-left"
+                            onClick={() => setSelectedSourceTitle(card.title)}
+                          >
+                            {card.title}
+                          </button>
                           <p className="text-xs text-muted-foreground">
                             {metaLine ||
                               (isSourceMetaLoading
                                 ? "Loading metadata..."
                                 : "No metadata yet")}
                           </p>
-                        </CardHeader>
-                        <CardContent className="space-y-3">
-                          <p className="text-sm text-muted-foreground">
-                            {card.latestTerm ? `${card.latestTerm}: ` : ""}
-                            {card.preview}
-                          </p>
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          {card.count > 0 ? (
+                            <p className="text-sm text-muted-foreground">
+                              {card.latestTerm ? `${card.latestTerm}: ` : ""}
+                              {card.preview}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              No terms yet.
+                            </p>
+                          )}
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                             <span>
                               Updated{" "}
                               {new Date(
@@ -835,21 +1040,29 @@ function ContributionsPageContent() {
                               ).toLocaleDateString()}
                             </span>
                             <Link
-                              href={`/sources/${encodedTitle}`}
-                              className="hover:underline"
+                              href={`/upload?source=${encodedTitle}`}
+                              className="underline"
                             >
-                              View source
+                              Add term
+                            </Link>
+                            <Link
+                              href={
+                                meta?.id
+                                  ? `/sources/new?id=${encodeURIComponent(
+                                      meta.id
+                                    )}`
+                                  : `/sources/new?title=${encodedTitle}`
+                              }
+                              className="underline"
+                            >
+                              {meta ? "Edit metadata" : "Add metadata"}
                             </Link>
                           </div>
                           <Link
-                            href={
-                              meta?.id
-                                ? `/sources/new?id=${encodeURIComponent(meta.id)}`
-                                : `/sources/new?title=${encodedTitle}`
-                            }
+                            href={`/sources/${encodedTitle}`}
                             className="text-xs text-muted-foreground underline"
                           >
-                            {meta ? "Edit metadata" : "Add metadata"}
+                            Public page
                           </Link>
                         </CardContent>
                       </Card>

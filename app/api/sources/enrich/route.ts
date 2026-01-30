@@ -16,6 +16,18 @@ type EnrichedSource = {
   openLibraryKey?: string;
 };
 
+class UpstreamError extends Error {
+  status: number;
+  url: string;
+
+  constructor(url: string, status: number, message?: string) {
+    super(message ?? `Upstream error ${status}`);
+    this.name = "UpstreamError";
+    this.status = status;
+    this.url = url;
+  }
+}
+
 function normalizeOptional(value: unknown) {
   if (typeof value !== "string") return "";
   return value.trim();
@@ -45,9 +57,21 @@ async function fetchJson<T>(url: string, timeoutMs = 8000): Promise<T> {
       cache: "no-store",
     });
     if (!res.ok) {
-      throw new Error(`Upstream error ${res.status}`);
+      let details = "";
+      try {
+        const text = await res.text();
+        details = text ? `: ${text.slice(0, 200)}` : "";
+      } catch {
+        // Ignore body read errors.
+      }
+      throw new UpstreamError(url, res.status, `Upstream error ${res.status}${details}`);
     }
     return (await res.json()) as T;
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError") {
+      throw new UpstreamError(url, 504, "Upstream timeout");
+    }
+    throw err;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -78,29 +102,50 @@ export async function POST(req: NextRequest) {
         authors?: Array<{ key: string }>;
       };
 
-      const isbnData = await fetchJson<IsbnResponse>(
-        `https://openlibrary.org/isbn/${encodeURIComponent(isbn)}.json`
-      );
-
-      if (isbnData.title) enriched.title = isbnData.title;
-      if (isbnData.publish_date) enriched.year = extractYear(isbnData.publish_date);
-      if (Array.isArray(isbnData.publishers) && isbnData.publishers.length > 0) {
-        enriched.publisher = isbnData.publishers[0];
-      }
-      enriched.isbn = isbn;
-      enriched.coverUrl = isbnToCoverUrl(isbn);
-      enriched.openLibraryKey = `/isbn/${isbn}`;
-
-      const authorKey = isbnData.authors?.[0]?.key;
-      if (authorKey) {
-        type AuthorResponse = { name?: string };
-        const authorData = await fetchJson<AuthorResponse>(
-          `https://openlibrary.org${authorKey}.json`
+      let isbnData: IsbnResponse | null = null;
+      try {
+        isbnData = await fetchJson<IsbnResponse>(
+          `https://openlibrary.org/isbn/${encodeURIComponent(isbn)}.json`
         );
-        if (authorData.name) enriched.author = authorData.name;
+      } catch (err) {
+        if (err instanceof UpstreamError && err.status === 404) {
+          isbnData = null;
+        } else {
+          throw err;
+        }
       }
 
-      return NextResponse.json({ enriched });
+      if (isbnData) {
+        if (isbnData.title) enriched.title = isbnData.title;
+        if (isbnData.publish_date) {
+          enriched.year = extractYear(isbnData.publish_date);
+        }
+        if (Array.isArray(isbnData.publishers) && isbnData.publishers.length > 0) {
+          enriched.publisher = isbnData.publishers[0];
+        }
+        enriched.isbn = isbn;
+        enriched.coverUrl = isbnToCoverUrl(isbn);
+        enriched.openLibraryKey = `/isbn/${isbn}`;
+
+        const authorKey = isbnData.authors?.[0]?.key;
+        if (authorKey) {
+          try {
+            type AuthorResponse = { name?: string };
+            const authorData = await fetchJson<AuthorResponse>(
+              `https://openlibrary.org${authorKey}.json`
+            );
+            if (authorData.name) enriched.author = authorData.name;
+          } catch {
+            // Ignore author lookup failures; ISBN data is already usable.
+          }
+        }
+
+        return NextResponse.json({ enriched });
+      }
+
+      if (!title) {
+        return NextResponse.json({ error: "No matches found" }, { status: 404 });
+      }
     }
 
     // 2) Fallback to search endpoint:
@@ -155,6 +200,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ enriched });
   } catch (error) {
     console.error("Sources enrich error:", error);
+    if (error instanceof UpstreamError) {
+      if (error.status === 404) {
+        return NextResponse.json({ error: "No matches found" }, { status: 404 });
+      }
+      if (error.status === 429) {
+        return NextResponse.json(
+          { error: "Open Library rate limited. Please try again later." },
+          { status: 503 }
+        );
+      }
+      if (error.status === 504) {
+        return NextResponse.json(
+          { error: "Open Library timed out. Please try again." },
+          { status: 504 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Open Library request failed" },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(
       { error: "Failed to enrich source" },
       { status: 500 }

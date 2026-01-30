@@ -247,6 +247,9 @@ export default function Home() {
           <Link className="underline" href="/upload">
             Upload
           </Link>
+          <Link className="underline" href="/sources">
+            Sources
+          </Link>
           <Link className="underline" href="/contributions">
             My contributions
           </Link>

@@ -12,6 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import Image from "next/image";
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 
 function NewSourceContent() {
   const params = useSearchParams();
@@ -33,6 +35,8 @@ function NewSourceContent() {
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichError, setEnrichError] = useState<string | null>(null);
   const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     setTitle(initialTitle);
@@ -185,6 +189,26 @@ function NewSourceContent() {
     }
   }
 
+  async function handleDelete() {
+    if (!sourceId) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/sources/${encodeURIComponent(sourceId)}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to delete source.");
+      }
+      router.push("/sources");
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl py-10">
       <Card>
@@ -215,15 +239,28 @@ function NewSourceContent() {
                   Overwrite existing fields
                 </label>
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleEnrich}
-                disabled={isSubmitting || isEnriching}
-              >
-                {isEnriching ? "Fetching..." : "Auto-fill (Open Library)"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {isEditing && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    disabled={isSubmitting || isEnriching || isDeleting}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEnrich}
+                  disabled={isSubmitting || isEnriching || isDeleting}
+                >
+                  {isEnriching ? "Fetching..." : "Auto-fill (Open Library)"}
+                </Button>
+              </div>
             </div>
 
             {enrichError && (
@@ -235,12 +272,16 @@ function NewSourceContent() {
             {coverUrl && (
               <div className="rounded-md border p-3">
                 <div className="flex items-start gap-3">
-                  <img
-                    src={coverUrl}
-                    alt="Cover preview"
-                    className="h-24 w-16 rounded object-cover border"
-                    onError={() => setCoverUrl(null)}
-                  />
+                  <div className="relative h-24 w-16 overflow-hidden rounded border bg-muted">
+                    <Image
+                      src={coverUrl}
+                      alt="Cover preview"
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                      onError={() => setCoverUrl(null)}
+                    />
+                  </div>
                   <div className="space-y-1 text-sm">
                     <div className="font-medium">Cover</div>
                     <div className="text-muted-foreground">
@@ -332,6 +373,16 @@ function NewSourceContent() {
           </form>
         </CardContent>
       </Card>
+
+      <DeleteConfirmationDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDelete}
+        title="Delete source metadata?"
+        description="This only deletes the source metadata record. Definitions that reference this source title will not be deleted."
+        itemName={title.trim() || "Untitled source"}
+        isDeleting={isDeleting}
+      />
     </div>
   );
 }
