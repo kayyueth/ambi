@@ -180,61 +180,87 @@ CREATE TABLE IF NOT EXISTS "public"."terms" (
 ALTER TABLE "public"."terms" OWNER TO "postgres";
 
 
-ALTER TABLE ONLY "public"."comments"
-    ADD CONSTRAINT "comments_pkey" PRIMARY KEY ("id");
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_pkey" PRIMARY KEY ("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."definitions" ADD CONSTRAINT "definitions_pkey" PRIMARY KEY ("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."profiles" ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."profiles" ADD CONSTRAINT "profiles_username_key" UNIQUE ("username");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."terms" ADD CONSTRAINT "terms_pkey" PRIMARY KEY ("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
+
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."terms" ADD CONSTRAINT "terms_slug_key" UNIQUE ("slug");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P16' THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
 
 
-ALTER TABLE ONLY "public"."definitions"
-    ADD CONSTRAINT "definitions_pkey" PRIMARY KEY ("id");
+CREATE INDEX IF NOT EXISTS "comments_definition_id_idx" ON "public"."comments" USING "btree" ("definition_id");
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_pkey" PRIMARY KEY ("id");
+CREATE INDEX IF NOT EXISTS "definitions_status_idx" ON "public"."definitions" USING "btree" ("status");
 
 
 
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_username_key" UNIQUE ("username");
+CREATE INDEX IF NOT EXISTS "definitions_term_id_idx" ON "public"."definitions" USING "btree" ("term_id");
 
 
 
-ALTER TABLE ONLY "public"."terms"
-    ADD CONSTRAINT "terms_pkey" PRIMARY KEY ("id");
+CREATE INDEX IF NOT EXISTS "terms_slug_idx" ON "public"."terms" USING "btree" ("slug");
 
 
 
-ALTER TABLE ONLY "public"."terms"
-    ADD CONSTRAINT "terms_slug_key" UNIQUE ("slug");
+CREATE INDEX IF NOT EXISTS "terms_term_lower_idx" ON "public"."terms" USING "btree" ("lower"("term"));
 
 
 
-CREATE INDEX "comments_definition_id_idx" ON "public"."comments" USING "btree" ("definition_id");
+CREATE INDEX IF NOT EXISTS "terms_term_pattern_idx" ON "public"."terms" USING "btree" ("term" "text_pattern_ops");
 
 
 
-CREATE INDEX "definitions_status_idx" ON "public"."definitions" USING "btree" ("status");
-
-
-
-CREATE INDEX "definitions_term_id_idx" ON "public"."definitions" USING "btree" ("term_id");
-
-
-
-CREATE INDEX "terms_slug_idx" ON "public"."terms" USING "btree" ("slug");
-
-
-
-CREATE INDEX "terms_term_lower_idx" ON "public"."terms" USING "btree" ("lower"("term"));
-
-
-
-CREATE INDEX "terms_term_pattern_idx" ON "public"."terms" USING "btree" ("term" "text_pattern_ops");
-
-
-
-CREATE INDEX "terms_term_trgm_ops_idx" ON "public"."terms" USING "gin" ("term" "public"."gin_trgm_ops");
+CREATE INDEX IF NOT EXISTS "terms_term_trgm_ops_idx" ON "public"."terms" USING "gin" ("term" "public"."gin_trgm_ops");
 
 
 
@@ -254,46 +280,61 @@ CREATE OR REPLACE TRIGGER "set_terms_updated_at" BEFORE UPDATE ON "public"."term
 
 
 
-ALTER TABLE ONLY "public"."comments"
-    ADD CONSTRAINT "comments_definition_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "public"."definitions"("id") ON DELETE CASCADE;
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_definition_id_fkey" FOREIGN KEY ("definition_id") REFERENCES "public"."definitions"("id") ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."comments" ADD CONSTRAINT "comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."definitions" ADD CONSTRAINT "definitions_term_id_fkey" FOREIGN KEY ("term_id") REFERENCES "public"."terms"("id") ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
-ALTER TABLE ONLY "public"."comments"
-    ADD CONSTRAINT "comments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."definitions" ADD CONSTRAINT "definitions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
-
-
-ALTER TABLE ONLY "public"."definitions"
-    ADD CONSTRAINT "definitions_term_id_fkey" FOREIGN KEY ("term_id") REFERENCES "public"."terms"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."definitions"
-    ADD CONSTRAINT "definitions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "auth"."users"("id");
-
-
-
-ALTER TABLE ONLY "public"."profiles"
-    ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+DO $$
+BEGIN
+  ALTER TABLE ONLY "public"."profiles" ADD CONSTRAINT "profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "auth"."users"("id") ON DELETE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+  WHEN SQLSTATE '42P07' THEN NULL;
+END $$;
 
 
 
 ALTER TABLE "public"."comments" ENABLE ROW LEVEL SECURITY;
 
 
+DROP POLICY IF EXISTS "comments_delete_own" ON "public"."comments";
 CREATE POLICY "comments_delete_own" ON "public"."comments" FOR DELETE TO "authenticated" USING (("auth"."uid"() = "user_id"));
 
-
-
+DROP POLICY IF EXISTS "comments_insert_auth" ON "public"."comments";
 CREATE POLICY "comments_insert_auth" ON "public"."comments" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
 
-
-
+DROP POLICY IF EXISTS "comments_read_all" ON "public"."comments";
 CREATE POLICY "comments_read_all" ON "public"."comments" FOR SELECT USING (true);
 
-
-
+DROP POLICY IF EXISTS "comments_update_own" ON "public"."comments";
 CREATE POLICY "comments_update_own" ON "public"."comments" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "user_id")) WITH CHECK (("auth"."uid"() = "user_id"));
 
 
@@ -301,22 +342,19 @@ CREATE POLICY "comments_update_own" ON "public"."comments" FOR UPDATE TO "authen
 ALTER TABLE "public"."definitions" ENABLE ROW LEVEL SECURITY;
 
 
+DROP POLICY IF EXISTS "defs_delete_own_any_status" ON "public"."definitions";
 CREATE POLICY "defs_delete_own_any_status" ON "public"."definitions" FOR DELETE TO "authenticated" USING (("user_id" = "auth"."uid"()));
 
-
-
+DROP POLICY IF EXISTS "defs_insert_auth" ON "public"."definitions";
 CREATE POLICY "defs_insert_auth" ON "public"."definitions" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "user_id"));
 
-
-
+DROP POLICY IF EXISTS "defs_read_own" ON "public"."definitions";
 CREATE POLICY "defs_read_own" ON "public"."definitions" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "user_id"));
 
-
-
+DROP POLICY IF EXISTS "defs_read_published" ON "public"."definitions";
 CREATE POLICY "defs_read_published" ON "public"."definitions" FOR SELECT USING (("status" = 'published'::"text"));
 
-
-
+DROP POLICY IF EXISTS "defs_update_own_unpublished" ON "public"."definitions";
 CREATE POLICY "defs_update_own_unpublished" ON "public"."definitions" FOR UPDATE TO "authenticated" USING ((("auth"."uid"() = "user_id") AND ("status" <> 'published'::"text"))) WITH CHECK ((("auth"."uid"() = "user_id") AND ("status" <> 'published'::"text")));
 
 
@@ -324,14 +362,13 @@ CREATE POLICY "defs_update_own_unpublished" ON "public"."definitions" FOR UPDATE
 ALTER TABLE "public"."profiles" ENABLE ROW LEVEL SECURITY;
 
 
+DROP POLICY IF EXISTS "profiles_read_own" ON "public"."profiles";
 CREATE POLICY "profiles_read_own" ON "public"."profiles" FOR SELECT TO "authenticated" USING (("auth"."uid"() = "id"));
 
-
-
+DROP POLICY IF EXISTS "profiles_update_own" ON "public"."profiles";
 CREATE POLICY "profiles_update_own" ON "public"."profiles" FOR UPDATE TO "authenticated" USING (("auth"."uid"() = "id")) WITH CHECK (("auth"."uid"() = "id"));
 
-
-
+DROP POLICY IF EXISTS "profiles_upsert_own" ON "public"."profiles";
 CREATE POLICY "profiles_upsert_own" ON "public"."profiles" FOR INSERT TO "authenticated" WITH CHECK (("auth"."uid"() = "id"));
 
 
@@ -339,10 +376,10 @@ CREATE POLICY "profiles_upsert_own" ON "public"."profiles" FOR INSERT TO "authen
 ALTER TABLE "public"."terms" ENABLE ROW LEVEL SECURITY;
 
 
+DROP POLICY IF EXISTS "terms_read_all" ON "public"."terms";
 CREATE POLICY "terms_read_all" ON "public"."terms" FOR SELECT USING (true);
 
-
-
+DROP POLICY IF EXISTS "terms_write_auth" ON "public"."terms";
 CREATE POLICY "terms_write_auth" ON "public"."terms" TO "authenticated" USING (true) WITH CHECK (true);
 
 

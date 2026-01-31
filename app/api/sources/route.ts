@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { isDevMode } from "@/lib/dev-mode";
+import { getSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseServerClient } from "@/lib/supabase/server";
 
 type SourcePayload = {
@@ -114,11 +116,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = await getSupabaseServerClient();
-    const { data: userResp } = await supabase.auth.getUser();
-    const user = userResp?.user;
+    const isDev = isDevMode();
+    const supabase = isDev
+      ? getSupabaseAdminClient()
+      : await getSupabaseServerClient();
+    const user = isDev
+      ? null
+      : (await supabase.auth.getUser()).data?.user ?? null;
 
-    if (!user) {
+    if (!user && !isDev) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -150,7 +156,7 @@ export async function POST(req: NextRequest) {
       isbn: normalizeOptional(body.isbn),
       cover_url: normalizeOptional(body.coverUrl),
       openlibrary_key: normalizeOptional(body.openLibraryKey),
-      created_by: user.id,
+      created_by: user?.id ?? null,
     };
 
     const { data, error } = await supabase
