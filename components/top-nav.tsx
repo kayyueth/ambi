@@ -12,6 +12,11 @@ export function TopNav() {
           Ambiguity
         </Link>
         <nav className="flex items-center gap-2 ml-auto">
+          <Link href="/sources">
+            <Button variant="secondary" size="sm">
+              Sources
+            </Button>
+          </Link>
           <Link href="/upload">
             <Button variant="secondary" size="sm">
               Upload

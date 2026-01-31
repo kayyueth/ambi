@@ -1,17 +1,37 @@
 "use client";
 
-import { useState, useRef, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useSearchParams } from "next/navigation";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { SimpleFileUpload } from "@/components/simple-file-upload";
+import Link from "next/link";
+import { SourceAutocompleteInput } from "@/components/source-autocomplete-input";
+import Image from "next/image";
+
+type SourcePreview = {
+  sourceKey: string;
+  kind: "db" | "openlibrary";
+  title: string;
+  author: string | null;
+  year: string | null;
+  publisher: string | null;
+  isbn: string | null;
+  coverUrl: string | null;
+  openLibraryKey: string | null;
+  id: string | null;
+};
+
+function normalizeKey(value: string) {
+  return value.trim().toLowerCase();
+}
 
 function UploadPageContent() {
   const params = useSearchParams();
   const [term, setTerm] = useState(params?.get("term") ?? "");
   const [definition, setDefinition] = useState("");
-  const [source, setSource] = useState("");
+  const [source, setSource] = useState(params?.get("source") ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +48,131 @@ function UploadPageContent() {
   const [showValidationWarning, setShowValidationWarning] = useState(false);
   const [validationMessage, setValidationMessage] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [sourcePreview, setSourcePreview] = useState<SourcePreview | null>(null);
+  const [isSourcePreviewLoading, setIsSourcePreviewLoading] = useState(false);
+  const [sourcePreviewError, setSourcePreviewError] = useState<string | null>(
+    null
+  );
+  const [isSourceEnriching, setIsSourceEnriching] = useState(false);
+
+  const sourceKey = useMemo(() => normalizeKey(source), [source]);
+
+  useEffect(() => {
+    if (!sourceKey || sourceKey.length < 2) {
+      setSourcePreview(null);
+      setSourcePreviewError(null);
+      setIsSourcePreviewLoading(false);
+      return;
+    }
+
+    let aborted = false;
+    const controller = new AbortController();
+
+    setIsSourcePreviewLoading(true);
+    setSourcePreviewError(null);
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/sources?title=${encodeURIComponent(source.trim())}`,
+          { cache: "no-store", signal: controller.signal }
+        );
+        const data = await res.json().catch(() => ({}));
+        if (aborted) return;
+
+        const db = data?.source ?? null;
+        if (db && typeof db.title === "string" && db.title.trim()) {
+          const next: SourcePreview = {
+            sourceKey: normalizeKey(db.title),
+            kind: "db",
+            id: typeof db.id === "string" ? db.id : null,
+            title: db.title,
+            author: db.author ?? null,
+            year: db.year ?? null,
+            publisher: db.publisher ?? null,
+            isbn: db.isbn ?? null,
+            coverUrl: db.cover_url ?? null,
+            openLibraryKey: db.openlibrary_key ?? null,
+          };
+          setSourcePreview(next);
+        } else {
+          setSourcePreview((prev) => {
+            if (!prev) return null;
+            if (prev.kind === "db") return null;
+            return prev.sourceKey === sourceKey ? prev : null;
+          });
+        }
+      } catch (err) {
+        if (!aborted) {
+          setSourcePreview(null);
+          setSourcePreviewError((err as Error).message);
+        }
+      } finally {
+        if (!aborted) setIsSourcePreviewLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      aborted = true;
+      clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [sourceKey, source]);
+
+  const activeSourcePreview =
+    sourcePreview && sourcePreview.sourceKey === sourceKey ? sourcePreview : null;
+
+  async function handleSourceEnrich() {
+    if (isSourceEnriching) return;
+    const title = source.trim();
+    if (!title) return;
+
+    setIsSourceEnriching(true);
+    setSourcePreviewError(null);
+    try {
+      const res = await fetch("/api/sources/enrich", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Failed to enrich source.");
+      }
+      const enriched = data?.enriched ?? {};
+      const nextTitle =
+        typeof enriched.title === "string" && enriched.title.trim()
+          ? enriched.title.trim()
+          : title;
+
+      setSource(nextTitle);
+      setSourcePreview({
+        sourceKey: normalizeKey(nextTitle),
+        kind: "openlibrary",
+        id: null,
+        title: nextTitle,
+        author:
+          typeof enriched.author === "string" ? enriched.author.trim() : null,
+        year: typeof enriched.year === "string" ? enriched.year.trim() : null,
+        publisher:
+          typeof enriched.publisher === "string"
+            ? enriched.publisher.trim()
+            : null,
+        isbn: typeof enriched.isbn === "string" ? enriched.isbn.trim() : null,
+        coverUrl:
+          typeof enriched.coverUrl === "string" ? enriched.coverUrl.trim() : null,
+        openLibraryKey:
+          typeof enriched.openLibraryKey === "string"
+            ? enriched.openLibraryKey.trim()
+            : null,
+      });
+    } catch (err) {
+      setSourcePreviewError((err as Error).message);
+    } finally {
+      setIsSourceEnriching(false);
+    }
+  }
 
   function validateSubmission() {
     const issues = [];
@@ -68,7 +213,7 @@ function UploadPageContent() {
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ term, definition, source }),
+        body: JSON.stringify({ term: term.trim(), definition, source: source.trim() }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -104,7 +249,12 @@ function UploadPageContent() {
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ term, definition, source, status: "draft" }),
+        body: JSON.stringify({
+          term: term.trim(),
+          definition,
+          source: source.trim(),
+          status: "draft",
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -321,13 +471,126 @@ function UploadPageContent() {
                 <label htmlFor="source" className="text-sm font-medium">
                   Source *
                 </label>
-                <Input
+                <SourceAutocompleteInput
                   id="source"
                   value={source}
-                  onChange={(e) => setSource(e.target.value)}
+                  onValueChange={(next) => {
+                    setSource(next);
+                    const nextKey = normalizeKey(next);
+                    setSourcePreview((prev) => {
+                      if (!prev) return null;
+                      if (prev.kind === "openlibrary" && prev.sourceKey !== nextKey) {
+                        return null;
+                      }
+                      return prev;
+                    });
+                    setSourcePreviewError(null);
+                  }}
                   placeholder="Where did this definition come from?"
+                  disabled={isSubmitting || isUploading}
                   className="w-full"
                 />
+                {source.trim() && (
+                  <p className="text-xs text-muted-foreground">
+                    <Link
+                      href={`/sources/${encodeURIComponent(source.trim())}`}
+                      className="underline"
+                    >
+                      Open source page (add/edit metadata)
+                    </Link>
+                  </p>
+                )}
+                {source.trim() &&
+                  (!activeSourcePreview || activeSourcePreview.kind !== "db") && (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        {activeSourcePreview?.kind === "openlibrary"
+                          ? "Preview from Open Library (not saved yet)."
+                          : "No saved metadata yet."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleSourceEnrich}
+                        disabled={isSubmitting || isUploading || isSourceEnriching}
+                      >
+                        {isSourceEnriching
+                          ? "Searching..."
+                          : activeSourcePreview?.kind === "openlibrary"
+                          ? "Search again"
+                          : "Search Open Library"}
+                      </Button>
+                    </div>
+                  )}
+                {(isSourcePreviewLoading || sourcePreviewError) && (
+                  <div className="text-xs text-muted-foreground">
+                    {isSourcePreviewLoading ? "Loading source metadata..." : ""}
+                    {sourcePreviewError ? (
+                      <span className="text-red-600">{sourcePreviewError}</span>
+                    ) : null}
+                  </div>
+                )}
+                {activeSourcePreview && (
+                  <div className="rounded-md border p-3">
+                    <div className="flex items-start gap-3">
+                      <div className="relative h-20 w-14 overflow-hidden rounded border bg-muted">
+                        <div className="absolute inset-0 flex items-center justify-center text-sm font-medium text-muted-foreground">
+                          {activeSourcePreview.title.trim().slice(0, 1).toUpperCase()}
+                        </div>
+                        {activeSourcePreview.coverUrl && (
+                          <Image
+                            src={activeSourcePreview.coverUrl}
+                            alt="Cover"
+                            fill
+                            sizes="56px"
+                            className="object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="font-medium break-words">
+                            {activeSourcePreview.title}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {activeSourcePreview.kind === "db"
+                              ? "Saved metadata"
+                              : "Open Library"}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {[
+                            activeSourcePreview.author,
+                            activeSourcePreview.year,
+                            activeSourcePreview.publisher,
+                            activeSourcePreview.isbn
+                              ? `ISBN ${activeSourcePreview.isbn}`
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || "No metadata details."}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <Link
+                            href={
+                              activeSourcePreview.id
+                                ? `/sources/new?id=${encodeURIComponent(
+                                    activeSourcePreview.id
+                                  )}`
+                                : `/sources/new?title=${encodeURIComponent(
+                                    activeSourcePreview.title
+                                  )}`
+                            }
+                            className="underline"
+                          >
+                            {activeSourcePreview.id ? "Edit metadata" : "Add metadata"}
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {uploadedFile && (
                   <p className="text-xs text-muted-foreground">
                     Source is required before submitting
